@@ -1,0 +1,758 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Roommate Requests & Synergy Review Hub · RPL Hostel Portal{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{ declineModalOpen: false, selectedRequestId: '', selectedRequesterName: '' }">
+    <!-- Top Hero Banner -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div>
+            <div class="flex items-center space-x-2 text-xs font-semibold text-indigo-700 mb-1">
+                <span>Roommate Pairing Engine (M4 &amp; M5)</span>
+                <span class="text-slate-300">•</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    DPDP Act 2023 Shielded
+                </span>
+                <span class="text-slate-300">•</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Bi-Directional Verification
+                </span>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
+                Roommate Requests &amp; Synergy Review Hub
+            </h1>
+            <p class="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                Review peer co-allocation requests, inspect multidimensional lifestyle synergy scores, verify disciplinary records and academic standing, and confirm mutual roommate allocations.
+            </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2.5">
+            <a href="{% url 'preferences:list' %}" 
+               class="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition">
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                <span>Ranked Preferences</span>
+            </a>
+            <a href="{% url 'compatibility:info' %}" 
+               class="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                </svg>
+                <span>Lifestyle Questionnaire</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Active Confirmed Roommate Pair Banner (If Already Confirmed) -->
+    {% if confirmed_partner_info %}
+    <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-300/80 rounded-2xl p-6 shadow-sm">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-5">
+            <div class="flex items-start space-x-4">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-bold text-lg shadow-sm shadow-emerald-200 flex-shrink-0">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            Mutual Pair Confirmed &amp; Locked
+                        </span>
+                        <span class="text-xs text-slate-500">Atomic Allocation Unit</span>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-900 mt-1">
+                        {{ confirmed_partner_info.partner_app.student_name }}
+                        <span class="text-slate-500 font-medium text-sm">({{ confirmed_partner_info.partner_app.student_id }})</span>
+                    </h2>
+                    <p class="text-xs text-slate-600 mt-0.5">
+                        {{ confirmed_partner_info.partner_app.programme }} • Year {{ confirmed_partner_info.partner_app.year_of_study }} • CGPA: {{ confirmed_partner_info.partner_app.cgpa }}
+                    </p>
+                    <div class="mt-2.5 flex flex-wrap items-center gap-3 text-xs text-slate-700">
+                        <span class="inline-flex items-center space-x-1.5 bg-white/80 border border-emerald-200 px-3 py-1 rounded-xl">
+                            <span class="font-semibold text-slate-900">Hostel Preference:</span>
+                            <span class="text-emerald-800 font-bold">{{ confirmed_partner_info.partner_rank1.preferred_hostel.name|default:"Not selected" }}</span>
+                        </span>
+                        <span class="inline-flex items-center space-x-1.5 bg-white/80 border border-emerald-200 px-3 py-1 rounded-xl">
+                            <span class="font-semibold text-slate-900">Synergy Score:</span>
+                            <span class="text-emerald-800 font-extrabold">{{ confirmed_partner_info.breakdown.percentage }}% ({{ confirmed_partner_info.breakdown.harmony_level }})</span>
+                        </span>
+                        <span class="inline-flex items-center space-x-1.5 bg-white/80 border border-emerald-200 px-3 py-1 rounded-xl">
+                            <span class="font-semibold text-slate-900">Prior Residency:</span>
+                            <span class="text-slate-700">
+                                {% if confirmed_partner_info.past_assignment %}
+                                    {{ confirmed_partner_info.past_assignment.bed.room.block.hostel.name }} Room {{ confirmed_partner_info.past_assignment.bed.room.room_number }}
+                                {% else %}
+                                    Fresher / New Campus Resident
+                                {% endif %}
+                            </span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-col items-end justify-center bg-white/90 border border-emerald-200 rounded-xl p-4 text-center md:min-w-44 shadow-2xs">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Solver Status</span>
+                <span class="text-sm font-extrabold text-emerald-700 mt-0.5">Bi-Directional Verified</span>
+                <span class="text-[10px] text-slate-500 mt-1">Guaranteed joint room allocation</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Section 1: Incoming Roommate Requests (Awaiting Confirmation) -->
+    <div class="space-y-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+                <h2 class="text-base font-bold text-slate-900">
+                    Incoming Roommate Requests
+                </h2>
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
+                    {{ incoming_requests|length }} Pending
+                </span>
+            </div>
+            <span class="text-xs text-slate-500">Requires candidate response to verify mutual pairing</span>
+        </div>
+
+        {% if incoming_requests %}
+            <div class="grid grid-cols-1 gap-6">
+                {% for req in incoming_requests %}
+                <div class="bg-white border-2 border-indigo-200/90 rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+                    <!-- Request Card Top Header -->
+                    <div class="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center font-bold text-base shadow-sm">
+                                {{ req.requester.student_name|slice:":2"|upper }}
+                            </div>
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <h3 class="text-base font-bold text-slate-900">{{ req.requester.student_name }}</h3>
+                                    <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200 text-slate-700">
+                                        ID: {{ req.requester.student_id }}
+                                    </span>
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                        Pending Your Response
+                                    </span>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-0.5">
+                                    {{ req.requester.programme }} • Year {{ req.requester.year_of_study }} • Requested {{ req.created_at|timesince }} ago
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Overall Compatibility Pill -->
+                        <div class="flex items-center space-x-3 bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                            <div class="text-right">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Synergy Index</span>
+                                <div class="text-xs font-bold text-slate-700">
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold {{ req.computed.breakdown.harmony_badge }}">
+                                        {{ req.computed.breakdown.harmony_level }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-200 flex flex-col items-center justify-center">
+                                <span class="text-base font-extrabold text-indigo-700 leading-none">{{ req.computed.breakdown.percentage }}%</span>
+                                <span class="text-[9px] text-indigo-500 font-semibold uppercase mt-0.5">Match</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Request Card Body: Synergy Breakdown & Records -->
+                    <div class="p-6 space-y-6">
+                        <!-- Hostel Alignment Bar -->
+                        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200/80">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                <div class="flex items-center space-x-3">
+                                    <div class="p-1.5 rounded-lg {% if req.computed.hostel_match %}bg-emerald-100 text-emerald-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+                                        {% if req.computed.hostel_match %}
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        {% else %}
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <span class="font-bold text-slate-800">Hostel Choice Alignment:</span>
+                                        <span class="text-slate-600 ml-1">
+                                            Requester chose <strong class="text-slate-900">{{ req.computed.requester_rank1.preferred_hostel.name|default:"Not specified" }}</strong> (Rank #1, {{ req.computed.requester_rank1.get_preferred_room_type_display|default:"Double" }}).
+                                            {% if req.computed.user_rank1 %}
+                                                Your Rank #1 is <strong class="text-slate-900">{{ req.computed.user_rank1.preferred_hostel.name }}</strong>.
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div>
+                                    {% if req.computed.hostel_match %}
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                            Aligned On Same Hostel
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                            Different First-Choice Hostels
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- M5 Compatibility Dimension Breakdown -->
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center space-x-1.5">
+                                    <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                    </svg>
+                                    <span>M5 Multidimensional Lifestyle Synergy Breakdown</span>
+                                </h4>
+                                <span class="text-[11px] text-slate-400 font-medium">Weighted Matrix: Sleep (40%), Study (30%), Clean (20%), Guests (10%)</span>
+                            </div>
+
+                            <!-- Dimension Grid -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                                <!-- 1. Sleep Habits -->
+                                <div class="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+                                    <div class="flex items-center justify-between text-xs mb-1.5">
+                                        <span class="font-bold text-slate-800">Sleep Schedule</span>
+                                        <span class="font-extrabold text-indigo-600">{{ req.computed.breakdown.dimensions.sleep.percentage }}%</span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2 overflow-hidden">
+                                        <div class="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style="width: {{ req.computed.breakdown.dimensions.sleep.percentage }}%;"></div>
+                                    </div>
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700">
+                                        {{ req.computed.breakdown.dimensions.sleep.status }}
+                                    </span>
+                                    <p class="text-[11px] text-slate-500 mt-1 line-clamp-2">
+                                        {{ req.computed.breakdown.dimensions.sleep.description }}
+                                    </p>
+                                </div>
+
+                                <!-- 2. Study Habits -->
+                                <div class="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+                                    <div class="flex items-center justify-between text-xs mb-1.5">
+                                        <span class="font-bold text-slate-800">Study Environment</span>
+                                        <span class="font-extrabold text-indigo-600">{{ req.computed.breakdown.dimensions.study.percentage }}%</span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2 overflow-hidden">
+                                        <div class="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style="width: {{ req.computed.breakdown.dimensions.study.percentage }}%;"></div>
+                                    </div>
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700">
+                                        {{ req.computed.breakdown.dimensions.study.status }}
+                                    </span>
+                                    <p class="text-[11px] text-slate-500 mt-1 line-clamp-2">
+                                        {{ req.computed.breakdown.dimensions.study.description }}
+                                    </p>
+                                </div>
+
+                                <!-- 3. Cleanliness -->
+                                <div class="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+                                    <div class="flex items-center justify-between text-xs mb-1.5">
+                                        <span class="font-bold text-slate-800">Cleanliness Norms</span>
+                                        <span class="font-extrabold text-indigo-600">{{ req.computed.breakdown.dimensions.cleanliness.percentage }}%</span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2 overflow-hidden">
+                                        <div class="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style="width: {{ req.computed.breakdown.dimensions.cleanliness.percentage }}%;"></div>
+                                    </div>
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700">
+                                        {{ req.computed.breakdown.dimensions.cleanliness.status }}
+                                    </span>
+                                    <p class="text-[11px] text-slate-500 mt-1 line-clamp-2">
+                                        {{ req.computed.breakdown.dimensions.cleanliness.description }}
+                                    </p>
+                                </div>
+
+                                <!-- 4. Guest Policy -->
+                                <div class="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs">
+                                    <div class="flex items-center justify-between text-xs mb-1.5">
+                                        <span class="font-bold text-slate-800">Guest Tolerance</span>
+                                        <span class="font-extrabold text-indigo-600">{{ req.computed.breakdown.dimensions.guest_tolerance.percentage }}%</span>
+                                    </div>
+                                    <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2 overflow-hidden">
+                                        <div class="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style="width: {{ req.computed.breakdown.dimensions.guest_tolerance.percentage }}%;"></div>
+                                    </div>
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700">
+                                        {{ req.computed.breakdown.dimensions.guest_tolerance.status }}
+                                    </span>
+                                    <p class="text-[11px] text-slate-500 mt-1 line-clamp-2">
+                                        {{ req.computed.breakdown.dimensions.guest_tolerance.description }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- DPDP Privacy Shield Notice -->
+                            <div class="mt-3 flex items-center space-x-2 text-[11px] text-slate-500 bg-indigo-50/40 border border-indigo-100 px-3 py-2 rounded-xl">
+                                <svg class="w-4 h-4 text-indigo-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                                </svg>
+                                <span>
+                                    <strong>DPDP Act 2023 Shielded:</strong> Individual survey responses remain cryptographically protected. Only comparative algorithmic synergy vectors are shared.
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Academic & Residency Track Record -->
+                        <div>
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2.5">
+                                Requester Academic &amp; Residential Track Record
+                            </h4>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                                <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                                    <span class="text-slate-400 text-[10px] uppercase font-bold">Academic Merit</span>
+                                    <div class="font-extrabold text-slate-900 mt-0.5">CGPA {{ req.requester.cgpa }} / 10.0</div>
+                                    <span class="text-[10px] text-emerald-600 font-semibold">Good Standing</span>
+                                </div>
+                                <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                                    <span class="text-slate-400 text-[10px] uppercase font-bold">Disciplinary Status</span>
+                                    <div class="font-extrabold mt-0.5 {% if req.requester.has_disciplinary_record %}text-rose-600{% else %}text-emerald-700{% endif %}">
+                                        {% if req.requester.has_disciplinary_record %}Flagged Under Review{% else %}Clean Record (0 Infractions){% endif %}
+                                    </div>
+                                    <span class="text-[10px] text-slate-500 font-medium">Verified by Proctor</span>
+                                </div>
+                                <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                                    <span class="text-slate-400 text-[10px] uppercase font-bold">Mess &amp; Hostel Dues</span>
+                                    <div class="font-extrabold mt-0.5 {% if req.requester.fee_cleared %}text-emerald-700{% else %}text-amber-600{% endif %}">
+                                        {% if req.requester.fee_cleared %}100% Cleared{% else %}Pending Clearance{% endif %}
+                                    </div>
+                                    <span class="text-[10px] text-slate-500 font-medium">Finance Office Audit</span>
+                                </div>
+                                <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                                    <span class="text-slate-400 text-[10px] uppercase font-bold">Past Campus Stay</span>
+                                    <div class="font-extrabold text-slate-900 mt-0.5 truncate">
+                                        {% if req.computed.past_assignment %}
+                                            {{ req.computed.past_assignment.bed.room.block.hostel.code }} Rm {{ req.computed.past_assignment.bed.room.room_number }}
+                                        {% else %}
+                                            Fresher / New Resident
+                                        {% endif %}
+                                    </div>
+                                    <span class="text-[10px] text-slate-500 font-medium">Housing Registry</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Request Action Bar (Accept & Decline Buttons) -->
+                    <div class="p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="text-xs text-slate-500">
+                            <strong>Policy Note:</strong> Accepting locks your mutual pairing. If declined, the candidate is smoothly moved to the individual pool without penalty.
+                        </div>
+                        <div class="flex items-center space-x-2.5 self-end sm:self-auto">
+                            <!-- Decline Button (Triggers Alpine modal) -->
+                            <button @click="declineModalOpen = true; selectedRequestId = '{{ req.id }}'; selectedRequesterName = '{{ req.requester.student_name|escapejs }}';" 
+                                    type="button" 
+                                    class="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 text-xs font-semibold shadow-xs transition">
+                                <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                                <span>Decline Request</span>
+                            </button>
+
+                            <!-- Accept Button Form -->
+                            <form method="POST" action="{% url 'preferences:requests' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="accept">
+                                <input type="hidden" name="request_id" value="{{ req.id }}">
+                                <button type="submit" 
+                                        class="inline-flex items-center space-x-1.5 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm shadow-emerald-200 transition">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <span>Accept &amp; Confirm Pair</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500 shadow-2xs">
+                <div class="w-12 h-12 mx-auto rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mb-3">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                    </svg>
+                </div>
+                <h3 class="text-sm font-bold text-slate-800">No Pending Roommate Requests</h3>
+                <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                    You currently have no incoming roommate requests. When a peer adds you to their preference list, their profile, lifestyle synergy score, and verification details will appear here.
+                </p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Section 2: Outgoing Roommate Requests (Sent by You) -->
+    <div class="space-y-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                <h2 class="text-base font-bold text-slate-900">
+                    Outgoing Roommate Requests (Sent by You)
+                </h2>
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
+                    {{ outgoing_requests|length }} Total
+                </span>
+            </div>
+            <span class="text-xs text-slate-500">Track status of roommate pairing requests you initiated</span>
+        </div>
+
+        {% if outgoing_requests %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% for req in outgoing_requests %}
+                <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs hover:border-slate-300 transition">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-sm">
+                                {{ req.target.student_name|slice:":2"|upper }}
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900">{{ req.target.student_name }}</h3>
+                                <p class="text-xs text-slate-500">{{ req.target.student_id }} • {{ req.target.programme }}</p>
+                            </div>
+                        </div>
+                        <div>
+                            {% if req.status == 'ACCEPTED' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    Confirmed Mutual Pair
+                                </span>
+                            {% elif req.status == 'DECLINED' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                    Declined
+                                </span>
+                            {% elif req.status == 'CANCELLED' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                    Cancelled
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                    Awaiting Response
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Synergy & Status Feedback -->
+                    <div class="mt-4 pt-3 border-t border-slate-100 space-y-2 text-xs">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-500">Pairwise Synergy Score:</span>
+                            <span class="font-extrabold text-indigo-700">
+                                {{ req.computed.breakdown.percentage }}% ({{ req.computed.breakdown.harmony_level }})
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-500">Requested On:</span>
+                            <span class="font-medium text-slate-700">{{ req.created_at|date:"M d, Y H:i" }}</span>
+                        </div>
+
+                        {% if req.status == 'DECLINED' %}
+                            <div class="mt-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                                <strong>Individual Pool Transition:</strong> {{ req.target.student_name }} declined this pairing request (Reason: <em>{{ req.decline_reason|default:"Alternative arrangement preferred" }}</em>). Your application has been smoothly transitioned to the Individual Allocation Pool. The M6 solver will pair you with optimal synergy roommates.
+                            </div>
+                        {% elif req.status == 'PENDING' %}
+                            <div class="mt-3 flex items-center justify-between pt-2">
+                                <span class="text-[11px] text-slate-400">Target notified via in-app alert</span>
+                                <form method="POST" action="{% url 'preferences:requests' %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="cancel">
+                                    <input type="hidden" name="request_id" value="{{ req.id }}">
+                                    <button type="submit" class="text-[11px] font-semibold text-slate-500 hover:text-rose-600 hover:underline">
+                                        Cancel Request
+                                    </button>
+                                </form>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="bg-white border border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-xs">
+                No outgoing requests sent yet. To request a mutual roommate, select a peer on the <a href="{% url 'preferences:list' %}" class="text-indigo-600 font-semibold underline">Ranked Preferences page</a>.
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Section 3: Request History & Audit Ledger -->
+    <div class="space-y-3">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                <h2 class="text-base font-bold text-slate-900">
+                    Past Request History &amp; Audit Trail
+                </h2>
+            </div>
+            <span class="text-xs text-slate-400">DPDP Act &amp; Multi-Tenant Compliant Immutable Log</span>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="border-b border-slate-200 bg-slate-50/70 text-slate-500 uppercase tracking-wider text-[10px] font-bold">
+                            <th class="py-3 px-4">Timestamp</th>
+                            <th class="py-3 px-4">Direction</th>
+                            <th class="py-3 px-4">Requester</th>
+                            <th class="py-3 px-4">Target Student</th>
+                            <th class="py-3 px-4">Resolution Status</th>
+                            <th class="py-3 px-4">Responded At</th>
+                            <th class="py-3 px-4">Notes / Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for item in history_requests %}
+                        <tr class="hover:bg-slate-50/50 transition">
+                            <td class="py-3 px-4 text-slate-500 whitespace-nowrap">
+                                {{ item.created_at|date:"M d, Y H:i" }}
+                            </td>
+                            <td class="py-3 px-4 whitespace-nowrap">
+                                {% if item.requester == user_app %}
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                                        Outgoing &rarr;
+                                    </span>
+                                {% else %}
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700">
+                                        &larr; Incoming
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">
+                                {{ item.requester.student_name }} ({{ item.requester.student_id }})
+                            </td>
+                            <td class="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">
+                                {{ item.target.student_name }} ({{ item.target.student_id }})
+                            </td>
+                            <td class="py-3 px-4 whitespace-nowrap">
+                                {% if item.status == 'ACCEPTED' %}
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                        Confirmed Mutual
+                                    </span>
+                                {% elif item.status == 'DECLINED' %}
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                                        Declined (Individual Pool)
+                                    </span>
+                                {% elif item.status == 'CANCELLED' %}
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                                        Cancelled
+                                    </span>
+                                {% else %}
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                        Pending
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3 px-4 text-slate-500 whitespace-nowrap">
+                                {{ item.responded_at|date:"M d, Y H:i"|default:"—" }}
+                            </td>
+                            <td class="py-3 px-4 text-slate-600 max-w-xs truncate">
+                                {{ item.decline_reason|default:"Standard pairing cycle confirmation" }}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="py-8 text-center text-slate-400">
+                                No historical roommate interactions logged yet.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 4: Campus-Wide Supervisory View (For Wardens & Administrators) -->
+    {% if is_admin or is_warden %}
+    <div class="mt-8 space-y-4 pt-6 border-t-2 border-dashed border-slate-200">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span>
+                <h2 class="text-base font-bold text-slate-900">
+                    Hostel Administration Overview: Campus Roommate Pairing Requests
+                </h2>
+                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800">
+                    {% if is_admin %}Campus-Wide Scope{% else %}{{ warden_hostel.name }} Jurisdiction{% endif %}
+                </span>
+            </div>
+            <span class="text-xs text-slate-500">Supervisory audit and live roommate pairing monitor</span>
+        </div>
+
+        <!-- Admin Stats Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Requests Logged</span>
+                <div class="text-xl font-extrabold text-slate-900 mt-1">{{ admin_stats.total|default:0 }}</div>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-amber-500">Pending Confirmation</span>
+                <div class="text-xl font-extrabold text-amber-600 mt-1">{{ admin_stats.pending|default:0 }}</div>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Mutual Confirmed Pairs</span>
+                <div class="text-xl font-extrabold text-emerald-700 mt-1">{{ admin_stats.accepted|default:0 }}</div>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-rose-500">Declined / Fallback Pool</span>
+                <div class="text-xl font-extrabold text-rose-600 mt-1">{{ admin_stats.declined|default:0 }}</div>
+            </div>
+        </div>
+
+        <!-- Admin Table of Requests -->
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="border-b border-slate-200 bg-slate-50/70 text-slate-500 uppercase tracking-wider text-[10px] font-bold">
+                            <th class="py-3 px-4">Requester Candidate</th>
+                            <th class="py-3 px-4">Target Roommate</th>
+                            <th class="py-3 px-4">Cycle</th>
+                            <th class="py-3 px-4">Synergy Score</th>
+                            <th class="py-3 px-4">Pairing Status</th>
+                            <th class="py-3 px-4">Date Sent</th>
+                            <th class="py-3 px-4">Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for req in admin_requests %}
+                        <tr class="hover:bg-slate-50/50 transition">
+                            <td class="py-3 px-4 font-bold text-slate-900">
+                                {{ req.requester.student_name }}
+                                <span class="text-slate-500 font-normal">({{ req.requester.student_id }})</span>
+                            </td>
+                            <td class="py-3 px-4 font-bold text-slate-900">
+                                {{ req.target.student_name }}
+                                <span class="text-slate-500 font-normal">({{ req.target.student_id }})</span>
+                            </td>
+                            <td class="py-3 px-4 text-slate-600">
+                                {{ req.requester.cycle.code }}
+                            </td>
+                            <td class="py-3 px-4 font-extrabold text-indigo-700">
+                                {{ req.compat_score }}%
+                            </td>
+                            <td class="py-3 px-4">
+                                {% if req.status == 'ACCEPTED' %}
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                        Confirmed Mutual
+                                    </span>
+                                {% elif req.status == 'DECLINED' %}
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                                        Declined
+                                    </span>
+                                {% else %}
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                        Pending Target
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3 px-4 text-slate-500">
+                                {{ req.created_at|date:"M d, Y H:i" }}
+                            </td>
+                            <td class="py-3 px-4 text-slate-500">
+                                {{ req.decline_reason|default:"—" }}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="py-6 text-center text-slate-400">
+                                No roommate requests found in jurisdiction.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Decline Confirmation Modal (Alpine.js) -->
+    <div x-show="declineModalOpen" 
+         x-cloak 
+         class="fixed inset-0 z-50 overflow-y-auto" 
+         aria-labelledby="modal-title" 
+         role="dialog" 
+         aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <!-- Backdrop -->
+            <div x-show="declineModalOpen" 
+                 x-transition:enter="ease-out duration-300" 
+                 x-transition:enter-start="opacity-0" 
+                 x-transition:enter-end="opacity-100" 
+                 x-transition:leave="ease-in duration-200" 
+                 x-transition:leave-start="opacity-100" 
+                 x-transition:leave-end="opacity-0" 
+                 class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity" 
+                 @click="declineModalOpen = false"></div>
+
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div x-show="declineModalOpen" 
+                 x-transition:enter="ease-out duration-300" 
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" 
+                 x-transition:leave="ease-in duration-200" 
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" 
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
+                 class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-slate-200">
+                
+                <form method="POST" action="{% url 'preferences:requests' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="decline">
+                    <input type="hidden" name="request_id" :value="selectedRequestId">
+
+                    <div class="bg-white p-6">
+                        <div class="flex items-start space-x-3.5">
+                            <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="text-base font-bold text-slate-900">
+                                    Decline Roommate Request
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1">
+                                    Are you sure you want to decline the roommate request from <span class="font-bold text-slate-800" x-text="selectedRequesterName"></span>?
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Fallback & Notice Card -->
+                        <div class="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-2">
+                            <div class="flex items-start space-x-2">
+                                <span class="text-indigo-600 font-bold">•</span>
+                                <span><strong>Smooth Individual Pool Fallback:</strong> The candidate will be gracefully moved to the Individual Allocation Pool without penalty.</span>
+                            </div>
+                            <div class="flex items-start space-x-2">
+                                <span class="text-indigo-600 font-bold">•</span>
+                                <span><strong>M6 Compatibility Solver:</strong> The optimization engine will automatically pair them with a compatible roommate matching their lifestyle habits.</span>
+                            </div>
+                        </div>
+
+                        <!-- Optional Decline Reason -->
+                        <div class="mt-4">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1.5">
+                                Reason for Declining (Optional):
+                            </label>
+                            <select name="decline_reason" class="w-full text-xs rounded-xl border border-slate-300 px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                                <option value="Candidate prefers individual room allocation pool">Prefer individual room allocation</option>
+                                <option value="Routine / schedule difference (Sleep or study preferences)">Routine / schedule difference (Sleep or study habits)</option>
+                                <option value="Arrangement already planned with another peer">Arrangement already planned with another peer</option>
+                                <option value="Different preferred hostel building">Different preferred hostel building</option>
+                                <option value="Other personal preference">Other personal preference</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 px-6 py-4 flex items-center justify-end space-x-3 border-t border-slate-200">
+                        <button type="button" 
+                                @click="declineModalOpen = false" 
+                                class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-200/80 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" 
+                                class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-200 transition">
+                            Confirm Decline &amp; Move to Individual Pool
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

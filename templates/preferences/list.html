@@ -1,0 +1,738 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Ranked Student Preferences · Preferences Module{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{ showSubmitModal: false }">
+    <!-- Header Hero Banner with Actions -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div>
+            <div class="flex items-center space-x-2 text-xs font-semibold text-indigo-700 mb-1">
+                <span>Preferences Module (M4)</span>
+                <span class="text-slate-300">•</span>
+                {% if is_admin %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        System Administrator • Campus-Wide Scope
+                    </span>
+                {% elif is_warden %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                        Hostel Warden Jurisdiction • {{ warden_hostel.name }} ({{ warden_hostel.code }})
+                    </span>
+                {% elif is_student %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Student Applicant Portal • {{ user_app.student_id|default:request.user.username }}
+                    </span>
+                {% else %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        Guest Portal
+                    </span>
+                {% endif %}
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
+                {% if is_admin %}
+                    Campus-Wide Student Ranked Preferences &amp; Demand
+                {% elif is_warden %}
+                    {{ warden_hostel.name }} Student Preferences
+                {% elif is_student %}
+                    My Hostel &amp; Room Preferences
+                {% else %}
+                    Student Ranked Preferences Portal
+                {% endif %}
+            </h1>
+            <p class="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                {% if is_admin %}
+                    Institutional administrative ledger showing ranked hostel choices, verified mutual roommate pairs, and capacity intake demand across all university residences.
+                {% elif is_warden %}
+                    Jurisdiction-scoped view of applicant choices, roommate pairing requests, and room type demand specifically opting for {{ warden_hostel.name }}.
+                {% elif is_student %}
+                    Submit and update your top 3 ranked choices for campus hostels and room sharing categories. Mutual roommate co-allocations will be prioritized by the solver engine.
+                {% else %}
+                    View and configure hostel preferences according to institutional priority guidelines.
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <a href="{% url 'inventory:explorer' %}" class="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition">
+                Hostel Explorer &rarr;
+            </a>
+
+            {% if user_app or is_student %}
+                <!-- Preference Submission Modal Trigger -->
+                <button @click="showSubmitModal = true" 
+                        type="button" 
+                        class="inline-flex items-center px-4 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition cursor-pointer">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                    {% if user_prefs_by_rank %}Update My Preferences{% else %}Submit Ranked Choices{% endif %}
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Role-Scoped Stats Overview Cards -->
+    {% if is_admin or is_warden %}
+        <!-- Administrative & Warden Stats Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-indigo-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">
+                        {% if is_admin %}Total Choices Logged{% else %}{{ warden_hostel.code }} Choices Logged{% endif %}
+                    </div>
+                    <div class="text-lg font-bold text-slate-900">{{ stats.total_preferences }}</div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">
+                        {% if is_admin %}Candidate Applicants{% else %}{{ warden_hostel.code }} Applicants{% endif %}
+                    </div>
+                    <div class="text-lg font-bold text-emerald-700">{{ stats.total_applicants }}</div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-purple-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">
+                        {% if is_admin %}Roommate Requests{% else %}{{ warden_hostel.code }} Roommate Requests{% endif %}
+                    </div>
+                    <div class="text-lg font-bold text-purple-700">{{ stats.with_roommate_req }}</div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">
+                        {% if is_admin %}Confirmed Mutual Pairs{% else %}{{ warden_hostel.code }} Mutual Pairs{% endif %}
+                    </div>
+                    <div class="text-lg font-bold text-emerald-700">{{ stats.confirmed_pairs_count }}</div>
+                </div>
+            </div>
+        </div>
+    {% elif is_student and user_app %}
+        <!-- Student Personal Stats Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-indigo-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Choices Configured</div>
+                    <div class="text-lg font-bold text-slate-900">{{ user_prefs_by_rank|length }} / 3 Ranks</div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-blue-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Rank #1 Residence</div>
+                    <div class="text-sm font-bold text-blue-800 truncate max-w-[150px]" title="{{ user_prefs_by_rank.1.preferred_hostel.name }}">
+                        {{ user_prefs_by_rank.1.preferred_hostel.name|default:"Not Selected" }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-purple-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Target Room Type</div>
+                    <div class="text-sm font-bold text-purple-800">
+                        {{ user_prefs_by_rank.1.get_preferred_room_type_display|default:"Double Sharing" }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full {% if user_mutual_status.status == 'MUTUAL_CONFIRMED' %}bg-emerald-500{% elif user_mutual_status.status == 'PENDING_PARTNER' %}bg-amber-500{% else %}bg-slate-400{% endif %} flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Roommate Status</div>
+                    <div class="text-xs font-bold {% if user_mutual_status.status == 'MUTUAL_CONFIRMED' %}text-emerald-700{% elif user_mutual_status.status == 'PENDING_PARTNER' %}text-amber-700{% else %}text-slate-600{% endif %} truncate max-w-[150px]">
+                        {{ user_mutual_status.label|default:"Individual Allocation" }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% elif not request.user.is_authenticated %}
+        <!-- Unauthenticated Guest Prompt Banner -->
+        <div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl p-6 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="space-y-1">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+                    Role-Based Access Control (RBAC)
+                </span>
+                <h2 class="text-base font-bold text-white">Authentication Required for Preference Intake &amp; Analytics</h2>
+                <p class="text-xs text-slate-300 max-w-xl">
+                    Student preferences, roommate verification records, and hostel demand statistics are protected. Please log in with your university account.
+                </p>
+            </div>
+            <div class="flex items-center space-x-2 flex-shrink-0">
+                <a href="{% url 'login' %}" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-xs transition">
+                    Sign In &rarr;
+                </a>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Demand Analytics & Verified Roommate Pairing Hub (Staff / Warden / Admin Only) -->
+    {% if is_admin or is_warden %}
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <!-- Demand Distribution Card -->
+            <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase {% if is_admin %}bg-indigo-100 text-indigo-800 border border-indigo-200{% else %}bg-purple-100 text-purple-800 border border-purple-200{% endif %}">
+                                {% if is_admin %}Campus-Wide Institutional Intake{% else %}{{ warden_hostel.name }} Warden View{% endif %}
+                            </span>
+                        </div>
+                        <h3 class="text-sm font-bold text-slate-900 mt-1">
+                            {% if is_admin %}Campus-Wide Hostel Demand Distribution{% else %}{{ warden_hostel.name }} Demand Distribution{% endif %}
+                        </h3>
+                        <p class="text-xs text-slate-500">
+                            {% if is_admin %}Applicant first-choice preferences across all campus residences.{% else %}Resident applications opting for your assigned hostel jurisdiction.{% endif %}
+                        </p>
+                    </div>
+                    <span class="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200">
+                        {{ demand_analytics.total_first_choices }} First Choices
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {% for hs in demand_analytics.hostel_stats %}
+                        <div class="p-3 rounded-xl border border-slate-200/80 bg-slate-50/60 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-xs text-slate-900">{{ hs.hostel.name }}</span>
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded font-bold {% if hs.hostel.gender_type == 'M' %}bg-blue-100 text-blue-800{% else %}bg-pink-100 text-pink-800{% endif %}">
+                                    {{ hs.hostel.get_gender_type_display }}
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-slate-500">Rank #1 Preferences:</span>
+                                <span class="font-bold text-indigo-700 font-mono">{{ hs.rank1_demand }}</span>
+                            </div>
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-slate-500">Total Opt-Ins (All ranks):</span>
+                                <span class="font-bold text-slate-700 font-mono">{{ hs.total_demand }}</span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Room Sharing Category Split -->
+                <div class="pt-2 border-t border-slate-100">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">Room Sharing Demand Split</span>
+                    <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                        <div class="p-2 rounded-lg bg-slate-50 border border-slate-200/60">
+                            <span class="text-[10px] text-slate-400 font-semibold block uppercase">Single</span>
+                            <span class="font-bold text-slate-800 font-mono">{{ demand_analytics.room_type_stats.SINGLE|default:0 }}</span>
+                        </div>
+                        <div class="p-2 rounded-lg bg-slate-50 border border-slate-200/60">
+                            <span class="text-[10px] text-slate-400 font-semibold block uppercase">Double</span>
+                            <span class="font-bold text-slate-800 font-mono">{{ demand_analytics.room_type_stats.DOUBLE|default:0 }}</span>
+                        </div>
+                        <div class="p-2 rounded-lg bg-slate-50 border border-slate-200/60">
+                            <span class="text-[10px] text-slate-400 font-semibold block uppercase">Triple</span>
+                            <span class="font-bold text-slate-800 font-mono">{{ demand_analytics.room_type_stats.TRIPLE|default:0 }}</span>
+                        </div>
+                        <div class="p-2 rounded-lg bg-slate-50 border border-slate-200/60">
+                            <span class="text-[10px] text-slate-400 font-semibold block uppercase">Dorm</span>
+                            <span class="font-bold text-slate-800 font-mono">{{ demand_analytics.room_type_stats.DORM|default:0 }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verified Mutual Roommate Pairs -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900">Mutual Roommate Pairs</h3>
+                        <p class="text-xs text-slate-500">
+                            {% if is_admin %}All campus co-allocation pairs.{% else %}Pairs requesting {{ warden_hostel.name }}.{% endif %}
+                        </p>
+                    </div>
+                    <span class="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        {{ confirmed_pairs|length }} Pairs
+                    </span>
+                </div>
+
+                <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {% for pair in confirmed_pairs %}
+                        <div class="p-3 rounded-xl border border-emerald-200 bg-emerald-50/30 flex items-center justify-between">
+                            <div class="space-y-0.5">
+                                <div class="text-xs font-bold text-slate-900">
+                                    {{ pair.student_a.student_name }} &amp; {{ pair.student_b.student_name }}
+                                </div>
+                                <div class="text-[11px] font-mono text-slate-500">
+                                    {{ pair.student_a.student_id }} ⇄ {{ pair.student_b.student_id }}
+                                </div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                Verified
+                            </span>
+                        </div>
+                    {% empty %}
+                        <div class="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                            No mutual roommate pairs recorded for this jurisdiction.
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Student's Personal Preference Summary (If student has choices logged) -->
+    {% if user_app %}
+        <div class="bg-gradient-to-r from-indigo-50/80 via-white to-purple-50/60 border border-indigo-200/70 rounded-2xl p-6 shadow-xs space-y-4">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse"></span>
+                        <h2 class="text-base font-bold text-slate-900">Your Current Preference Priority ({{ user_app.student_name }})</h2>
+                        <span class="font-mono text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded font-bold">{{ user_app.student_id }}</span>
+                    </div>
+                </div>
+
+                <button @click="showSubmitModal = true" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline self-start md:self-auto cursor-pointer">
+                    Change Rankings &rarr;
+                </button>
+            </div>
+
+            {% if user_mutual_status and user_mutual_status.status != 'NONE' %}
+                <div class="p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 
+                    {% if user_mutual_status.status == 'MUTUAL_CONFIRMED' %}bg-emerald-50 border-emerald-200 text-emerald-900
+                    {% elif user_mutual_status.status == 'PENDING_PARTNER' %}bg-amber-50 border-amber-200 text-amber-900
+                    {% else %}bg-rose-50 border-rose-200 text-rose-900{% endif %}">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 
+                            {% if user_mutual_status.status == 'MUTUAL_CONFIRMED' %}bg-emerald-100 text-emerald-700
+                            {% elif user_mutual_status.status == 'PENDING_PARTNER' %}bg-amber-100 text-amber-700
+                            {% else %}bg-rose-100 text-rose-700{% endif %}">
+                            {% if user_mutual_status.status == 'MUTUAL_CONFIRMED' %}
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                            {% else %}
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            {% endif %}
+                        </div>
+                        <div class="text-xs">
+                            <span class="font-bold block">{{ user_mutual_status.label }}</span>
+                            <span class="text-xs opacity-90 block mt-0.5">{{ user_mutual_status.reason }}</span>
+                        </div>
+                    </div>
+                    <a href="{% url 'preferences:requests' %}" class="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 hover:bg-slate-50 transition shadow-2xs self-start sm:self-auto">
+                        <span>Open Request Hub &rarr;</span>
+                    </a>
+                </div>
+            {% endif %}
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                <!-- Rank 1 Card -->
+                <div class="bg-white rounded-xl border border-indigo-200 p-4 shadow-2xs">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-indigo-600 text-white">Rank #1 (Highest)</span>
+                        <span class="text-xs text-slate-400 font-medium">Weight: 100%</span>
+                    </div>
+                    <div class="text-sm font-bold text-slate-900">
+                        {{ user_prefs_by_rank.1.preferred_hostel.name|default:"Not selected" }}
+                    </div>
+                    <div class="text-xs text-slate-500 mt-1 flex items-center justify-between">
+                        <span>Room Type: <strong class="text-slate-700">{{ user_prefs_by_rank.1.get_preferred_room_type_display|default:"Double" }}</strong></span>
+                    </div>
+                    {% if user_prefs_by_rank.1.preferred_roommate_id %}
+                        <div class="mt-2 text-[11px] bg-purple-50 text-purple-700 border border-purple-200 rounded px-2 py-1 font-mono">
+                            Requested Roommate: {{ user_prefs_by_rank.1.preferred_roommate_id }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Rank 2 Card -->
+                <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-700 text-white">Rank #2</span>
+                        <span class="text-xs text-slate-400 font-medium">Weight: 60%</span>
+                    </div>
+                    <div class="text-sm font-bold text-slate-900">
+                        {{ user_prefs_by_rank.2.preferred_hostel.name|default:"Not selected" }}
+                    </div>
+                    <div class="text-xs text-slate-500 mt-1 flex items-center justify-between">
+                        <span>Room Type: <strong class="text-slate-700">{{ user_prefs_by_rank.2.get_preferred_room_type_display|default:"Double" }}</strong></span>
+                    </div>
+                    {% if user_prefs_by_rank.2.preferred_roommate_id %}
+                        <div class="mt-2 text-[11px] bg-purple-50 text-purple-700 border border-purple-200 rounded px-2 py-1 font-mono">
+                            Requested Roommate: {{ user_prefs_by_rank.2.preferred_roommate_id }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Rank 3 Card -->
+                <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-500 text-white">Rank #3</span>
+                        <span class="text-xs text-slate-400 font-medium">Weight: 30%</span>
+                    </div>
+                    <div class="text-sm font-bold text-slate-900">
+                        {{ user_prefs_by_rank.3.preferred_hostel.name|default:"Not selected" }}
+                    </div>
+                    <div class="text-xs text-slate-500 mt-1 flex items-center justify-between">
+                        <span>Room Type: <strong class="text-slate-700">{{ user_prefs_by_rank.3.get_preferred_room_type_display|default:"Double" }}</strong></span>
+                    </div>
+                    {% if user_prefs_by_rank.3.preferred_roommate_id %}
+                        <div class="mt-2 text-[11px] bg-purple-50 text-purple-700 border border-purple-200 rounded px-2 py-1 font-mono">
+                            Requested Roommate: {{ user_prefs_by_rank.3.preferred_roommate_id }}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Filter, Search and Submissions Table (Institutional Admin and Assigned Wardens Only) -->
+    {% if is_admin or is_warden %}
+        <!-- Filter and Search Bar -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+            <form method="GET" action="{% url 'preferences:list' %}" class="flex flex-col md:flex-row items-center gap-3">
+                <div class="relative flex-1 w-full">
+                    <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <input type="text" 
+                           name="q" 
+                           value="{{ query }}" 
+                           placeholder="Search by student name, registration number (123XXXXX), or roommate ID..." 
+                           class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden">
+                </div>
+
+                <div class="flex items-center gap-2 w-full md:w-auto">
+                    {% if is_admin %}
+                        <select name="hostel" class="px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden">
+                            <option value="">All Hostels</option>
+                            {% for h in all_hostels %}
+                                <option value="{{ h.id }}" {% if hostel_filter == h.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ h.name }} ({{ h.code }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    {% elif is_warden and warden_hostel %}
+                        <span class="px-3 py-2 rounded-xl text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 flex-shrink-0">
+                            Hostel: {{ warden_hostel.code }}
+                        </span>
+                    {% endif %}
+
+                    <select name="room_type" class="px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden">
+                        <option value="">All Room Types</option>
+                        <option value="SINGLE" {% if room_filter == "SINGLE" %}selected{% endif %}>Single</option>
+                        <option value="DOUBLE" {% if room_filter == "DOUBLE" %}selected{% endif %}>Double</option>
+                        <option value="TRIPLE" {% if room_filter == "TRIPLE" %}selected{% endif %}>Triple</option>
+                        <option value="DORM" {% if room_filter == "DORM" %}selected{% endif %}>Dorm</option>
+                    </select>
+
+                    <select name="rank" class="px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden">
+                        <option value="">All Ranks</option>
+                        <option value="1" {% if rank_filter == "1" %}selected{% endif %}>Rank #1</option>
+                        <option value="2" {% if rank_filter == "2" %}selected{% endif %}>Rank #2</option>
+                        <option value="3" {% if rank_filter == "3" %}selected{% endif %}>Rank #3</option>
+                    </select>
+
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-2xs transition cursor-pointer">
+                        Filter
+                    </button>
+
+                    {% if query or hostel_filter or room_filter or rank_filter %}
+                        <a href="{% url 'preferences:list' %}" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition">
+                            Reset
+                        </a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+
+        <!-- Active Ranked Preferences Table -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-bold text-slate-900">
+                    {% if is_admin %}
+                        Campus-Wide Student Priority Submissions ({{ preferences|length }})
+                    {% elif is_warden and warden_hostel %}
+                        {{ warden_hostel.name }} Priority Submissions ({{ preferences|length }})
+                    {% else %}
+                        My Submitted Preferences ({{ preferences|length }})
+                    {% endif %}
+                </h2>
+                <span class="text-xs text-slate-400">Sorted by Applicant &amp; Rank</span>
+            </div>
+
+            <div class="overflow-x-auto rounded-xl border border-slate-200">
+                <table class="w-full text-left text-xs text-slate-700">
+                    <thead class="bg-slate-50 text-[11px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                        <tr>
+                            <th class="px-4 py-3">Applicant &amp; Reg No</th>
+                            <th class="px-4 py-3">Priority Rank</th>
+                            <th class="px-4 py-3">Preferred Hostel</th>
+                            <th class="px-4 py-3">Room Sharing Choice</th>
+                            <th class="px-4 py-3">Mutual Roommate Request</th>
+                            <th class="px-4 py-3 text-right">Cycle</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for pref in preferences %}
+                            <tr class="hover:bg-slate-50/80 transition">
+                                <td class="px-4 py-3">
+                                    <div class="font-bold text-slate-900">{{ pref.application.student_name }}</div>
+                                    <span class="font-mono text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded">
+                                        {{ pref.application.student_id }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    {% if pref.rank == 1 %}
+                                        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                            Rank #1 (Top)
+                                        </span>
+                                    {% elif pref.rank == 2 %}
+                                        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                            Rank #2
+                                        </span>
+                                    {% else %}
+                                        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                            Rank #{{ pref.rank }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="font-semibold text-slate-800">{{ pref.preferred_hostel.name }}</span>
+                                    <span class="text-[11px] text-slate-400 block font-mono">({{ pref.preferred_hostel.code }})</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-800">
+                                        {{ pref.get_preferred_room_type_display }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    {% if pref.preferred_roommate_id %}
+                                        {% if pref.mutual_info.status == 'MUTUAL_CONFIRMED' %}
+                                            <div class="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200" title="{{ pref.mutual_info.reason }}">
+                                                <svg class="w-3.5 h-3.5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                                <span>Mutual: {{ pref.mutual_info.target_name }} ({{ pref.preferred_roommate_id }})</span>
+                                            </div>
+                                        {% elif pref.mutual_info.status == 'PENDING_PARTNER' %}
+                                            <div class="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200" title="{{ pref.mutual_info.reason }}">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                                <span>Pending: {{ pref.mutual_info.target_name|default:pref.preferred_roommate_id }}</span>
+                                            </div>
+                                        {% else %}
+                                            <div class="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200" title="{{ pref.mutual_info.reason }}">
+                                                <svg class="w-3.5 h-3.5 text-rose-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                                                <span>{{ pref.mutual_info.label }}: {{ pref.preferred_roommate_id }}</span>
+                                            </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-slate-400 italic">None specified</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 text-right font-mono text-[11px] text-slate-500">
+                                    {{ pref.application.cycle.code|default:"AY2026-AUTUMN" }}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="6" class="px-4 py-12 text-center text-slate-400">
+                                    <div class="max-w-xs mx-auto">
+                                        <p class="font-medium text-slate-600 mb-2">No matching preferences found.</p>
+                                        <p class="text-xs text-slate-400 mb-4">Try clearing your filters or check student enrollment in this hostel.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% elif is_student %}
+        <!-- Student Guidance & Allocation Rules Card -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+            <div class="flex items-center space-x-2 border-b border-slate-100 pb-3">
+                <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <h3 class="text-sm font-bold text-slate-900">How Your Preferences Are Allocated (M6 Solver Guidelines)</h3>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-600">
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1.5">
+                    <span class="font-bold text-slate-900 block text-xs flex items-center space-x-1.5">
+                        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+                        <span>1. Priority Optimization</span>
+                    </span>
+                    <p class="text-[11px] text-slate-500 leading-relaxed">
+                        The mathematical solver attempts to assign your <strong>Rank #1</strong> choice first. If your top hostel/room type is full, it cascades to Rank #2 and Rank #3 without penalty.
+                    </p>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1.5">
+                    <span class="font-bold text-slate-900 block text-xs flex items-center space-x-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span>2. Mutual Roommate Pairing</span>
+                    </span>
+                    <p class="text-[11px] text-slate-500 leading-relaxed">
+                        If both you and your requested roommate select each other, you form a <strong>Verified Mutual Pair</strong>. The solver co-allocates both of you into the same shared room.
+                    </p>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1.5">
+                    <span class="font-bold text-slate-900 block text-xs flex items-center space-x-1.5">
+                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                        <span>3. Objective Tie-Breaking</span>
+                    </span>
+                    <p class="text-[11px] text-slate-500 leading-relaxed">
+                        When demand exceeds available beds, priority is resolved objectively by Distance from campus (>50km), Academic Merit (CGPA), and verified eligibility tier.
+                    </p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Submit / Update Preferences Modal -->
+    <div x-show="showSubmitModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto" @click.away="showSubmitModal = false">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">Submit / Edit Ranked Choices</h3>
+                    <p class="text-xs text-slate-500">Configure your 1st, 2nd, and 3rd preference choices for the upcoming allocation run.</p>
+                </div>
+                <button type="button" @click="showSubmitModal = false" class="text-slate-400 hover:text-slate-600 p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form method="POST" action="{% url 'preferences:list' %}" class="space-y-4">
+                {% csrf_token %}
+                {% if user_app %}
+                    <input type="hidden" name="application_id" value="{{ user_app.id }}">
+                    <div class="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs flex items-center justify-between">
+                        <div>
+                            <span class="text-slate-500">Applying for Student:</span>
+                            <span class="font-bold text-slate-900 ml-1">{{ user_app.student_name }}</span>
+                        </div>
+                        <span class="font-mono font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                            {{ user_app.student_id }}
+                        </span>
+                    </div>
+                {% endif %}
+
+                <!-- Choice Rank 1 -->
+                <div class="p-4 rounded-xl border border-indigo-200 bg-indigo-50/30 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-indigo-600 text-white">Rank #1 (Highest Priority)</span>
+                        <span class="text-xs text-indigo-700 font-semibold">Priority 100%</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Preferred Hostel *</label>
+                            <select name="rank_1_hostel" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white">
+                                <option value="">Select Hostel</option>
+                                {% for h in available_hostels %}
+                                    <option value="{{ h.id }}" {% if user_prefs_by_rank.1.preferred_hostel_id == h.id %}selected{% endif %}>
+                                        {{ h.name }} ({{ h.code }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Room Sharing Type *</label>
+                            <select name="rank_1_room_type" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white">
+                                <option value="SINGLE" {% if user_prefs_by_rank.1.preferred_room_type == "SINGLE" %}selected{% endif %}>Single Occupancy</option>
+                                <option value="DOUBLE" {% if not user_prefs_by_rank.1 or user_prefs_by_rank.1.preferred_room_type == "DOUBLE" %}selected{% endif %}>Double Sharing</option>
+                                <option value="TRIPLE" {% if user_prefs_by_rank.1.preferred_room_type == "TRIPLE" %}selected{% endif %}>Triple Sharing</option>
+                                <option value="DORM" {% if user_prefs_by_rank.1.preferred_room_type == "DORM" %}selected{% endif %}>Dormitory</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Mutual Roommate Request (Optional Student ID)</label>
+                        <input type="text" name="rank_1_roommate" value="{{ user_prefs_by_rank.1.preferred_roommate_id|default:'' }}" placeholder="e.g. 12300002 (Do not enter your own ID)" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono">
+                        <p class="text-[10px] text-slate-400 mt-1">Must be another registered applicant of the same gender group. Self-requests are automatically rejected.</p>
+                    </div>
+                </div>
+
+                <!-- Choice Rank 2 -->
+                <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-700 text-white">Rank #2 (Alternative)</span>
+                        <span class="text-xs text-slate-500 font-semibold">Priority 60%</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Preferred Hostel</label>
+                            <select name="rank_2_hostel" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white">
+                                <option value="">Select Hostel</option>
+                                {% for h in available_hostels %}
+                                    <option value="{{ h.id }}" {% if user_prefs_by_rank.2.preferred_hostel_id == h.id %}selected{% endif %}>
+                                        {{ h.name }} ({{ h.code }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Room Sharing Type</label>
+                            <select name="rank_2_room_type" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white">
+                                <option value="SINGLE" {% if user_prefs_by_rank.2.preferred_room_type == "SINGLE" %}selected{% endif %}>Single Occupancy</option>
+                                <option value="DOUBLE" {% if not user_prefs_by_rank.2 or user_prefs_by_rank.2.preferred_room_type == "DOUBLE" %}selected{% endif %}>Double Sharing</option>
+                                <option value="TRIPLE" {% if user_prefs_by_rank.2.preferred_room_type == "TRIPLE" %}selected{% endif %}>Triple Sharing</option>
+                                <option value="DORM" {% if user_prefs_by_rank.2.preferred_room_type == "DORM" %}selected{% endif %}>Dormitory</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Mutual Roommate Request (Optional Student ID)</label>
+                        <input type="text" name="rank_2_roommate" value="{{ user_prefs_by_rank.2.preferred_roommate_id|default:'' }}" placeholder="e.g. 12300003 (Do not enter your own ID)" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono">
+                    </div>
+                </div>
+
+                <!-- Choice Rank 3 -->
+                <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-500 text-white">Rank #3 (Fallback)</span>
+                        <span class="text-xs text-slate-400 font-semibold">Priority 30%</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Preferred Hostel</label>
+                            <select name="rank_3_hostel" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white">
+                                <option value="">Select Hostel</option>
+                                {% for h in available_hostels %}
+                                    <option value="{{ h.id }}" {% if user_prefs_by_rank.3.preferred_hostel_id == h.id %}selected{% endif %}>
+                                        {{ h.name }} ({{ h.code }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Room Sharing Type</label>
+                            <select name="rank_3_room_type" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white">
+                                <option value="SINGLE" {% if user_prefs_by_rank.3.preferred_room_type == "SINGLE" %}selected{% endif %}>Single Occupancy</option>
+                                <option value="DOUBLE" {% if not user_prefs_by_rank.3 or user_prefs_by_rank.3.preferred_room_type == "DOUBLE" %}selected{% endif %}>Double Sharing</option>
+                                <option value="TRIPLE" {% if user_prefs_by_rank.3.preferred_room_type == "TRIPLE" %}selected{% endif %}>Triple Sharing</option>
+                                <option value="DORM" {% if user_prefs_by_rank.3.preferred_room_type == "DORM" %}selected{% endif %}>Dormitory</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Mutual Roommate Request (Optional Student ID)</label>
+                        <input type="text" name="rank_3_roommate" value="{{ user_prefs_by_rank.3.preferred_roommate_id|default:'' }}" placeholder="e.g. 12300004 (Do not enter your own ID)" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono">
+                    </div>
+                </div>
+
+                <div class="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
+                    <button type="button" @click="showSubmitModal = false" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs">
+                        Save &amp; Confirm Choices
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
