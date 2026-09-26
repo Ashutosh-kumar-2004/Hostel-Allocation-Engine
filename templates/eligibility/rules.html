@@ -1,0 +1,322 @@
+{% extends 'base.html' %}
+
+{% block title %}Eligibility Policy Rules (M3) · Policy Evaluation Engine{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div>
+            <div class="flex items-center space-x-2 text-xs font-semibold text-indigo-700 mb-1">
+                <span>Eligibility Module (M3)</span>
+                <span class="text-slate-300">•</span>
+                <span>Policy Evaluation Engine</span>
+                <span class="text-slate-300">•</span>
+                <span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
+                    Deterministic Gatekeeper
+                </span>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Eligibility Policy Rules &amp; Evaluation</h1>
+            <p class="text-xs text-slate-500 mt-1">
+                Configurable hard and soft admission criteria: Distance thresholds, CGPA conditions, disciplinary conduct, and financial clearance.
+            </p>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <form method="POST" action="{% url 'eligibility:run_batch' %}">
+                {% csrf_token %}
+                <button type="submit" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold text-white shadow-sm flex items-center space-x-2 transition cursor-pointer">
+                    <svg class="w-4 h-4 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span>Run Batch Eligibility Check</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Intake Performance Metrics -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Total Intake</span>
+                <span class="text-2xl font-bold text-slate-900 mt-1 block">{{ total_applications }}</span>
+                <span class="text-[11px] text-slate-400 mt-0.5 block">Student Applicants</span>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+            </div>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Qualified Eligible</span>
+                <span class="text-2xl font-bold text-emerald-700 mt-1 block">{{ eligible_count }}</span>
+                <span class="text-[11px] text-emerald-600 font-semibold mt-0.5 block">Admitted to Solver Pool</span>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Disqualified</span>
+                <span class="text-2xl font-bold text-rose-600 mt-1 block">{{ ineligible_count }}</span>
+                <span class="text-[11px] text-rose-600 font-medium mt-0.5 block">Policy Rule Violation</span>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Pending Intake</span>
+                <span class="text-2xl font-bold text-amber-600 mt-1 block">{{ pending_count }}</span>
+                <span class="text-[11px] text-amber-600 font-medium mt-0.5 block">Awaiting Evaluation</span>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Institutional Policy Rules -->
+    <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+                <h2 class="text-base font-bold text-slate-900">Configured Policy Rules</h2>
+                <p class="text-xs text-slate-500">Criteria automatically checked by the engine before admitting students into the M6 solver pool.</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for rule in rules %}
+                <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:border-indigo-300 transition space-y-3" x-data="{ openEditModal: false }">
+                    <div class="flex items-center justify-between">
+                        <span class="px-2.5 py-0.5 rounded text-[10px] font-bold 
+                            {% if rule.is_hard_rule %}bg-rose-100 text-rose-800 border border-rose-200{% else %}bg-amber-100 text-amber-800 border border-amber-200{% endif %}">
+                            {% if rule.is_hard_rule %}MANDATORY HARD BAR{% else %}SOFT WEIGHT{% endif %}
+                        </span>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-[11px] font-mono text-slate-500">{{ rule.cycle.code }}</span>
+                            {% if user.is_staff or user.is_superuser or 'warden' in user.username %}
+                                <button type="button" 
+                                        @click="openEditModal = true" 
+                                        class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50 shadow-2xs transition inline-flex items-center space-x-1 cursor-pointer">
+                                    <svg class="w-3 h-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                    <span>Edit Policy</span>
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-sm">{{ rule.name }}</h3>
+                        <p class="text-xs text-slate-600 mt-0.5">{{ rule.get_rule_type_display }}</p>
+                    </div>
+
+                    <div class="p-2.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-700 flex items-center justify-between">
+                        <span class="text-[11px] text-slate-400 font-semibold uppercase">Parameters:</span>
+                        <code class="font-mono text-xs font-bold text-indigo-700">{{ rule.parameters }}</code>
+                    </div>
+
+                    <!-- Edit Policy Modal -->
+                    <div x-show="openEditModal" 
+                         x-cloak 
+                         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto"
+                         role="dialog">
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4 my-8" 
+                             @click.away="openEditModal = false">
+                            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                                <div>
+                                    <div class="text-[10px] font-bold uppercase tracking-wider text-indigo-700">Policy Configuration</div>
+                                    <h3 class="text-base font-bold text-slate-900">Edit {{ rule.name }}</h3>
+                                </div>
+                                <button @click="openEditModal = false" type="button" class="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+
+                            <form method="POST" action="{% url 'eligibility:update_rule' rule.id %}" class="space-y-4 text-xs text-left">
+                                {% csrf_token %}
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Policy Title *</label>
+                                    <input type="text" name="name" value="{{ rule.name }}" required class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white text-slate-800 font-semibold">
+                                </div>
+
+                                {% if rule.rule_type == 'DISTANCE' %}
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Minimum Distance Threshold (km) *</label>
+                                        <input type="number" step="0.5" min="0" name="min_distance_km" value="{{ rule.parameters.min_distance_km|default:30 }}" required class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white text-slate-800 font-bold">
+                                        <span class="text-[11px] text-slate-400 mt-1 block">Permanent residence closer than this threshold is flagged as a local commuter.</span>
+                                    </div>
+                                {% elif rule.rule_type == 'ACADEMIC' %}
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Minimum CGPA Required *</label>
+                                        <input type="number" step="0.01" min="0" max="10" name="min_cgpa" value="{{ rule.parameters.min_cgpa|default:6.0 }}" required class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white text-slate-800 font-bold">
+                                        <span class="text-[11px] text-slate-400 mt-1 block">Candidates below this CGPA cutoff are flagged as academically ineligible.</span>
+                                    </div>
+                                {% elif rule.rule_type == 'DISCIPLINARY' %}
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Max Permitted Infractions *</label>
+                                        <input type="number" min="0" name="max_infractions" value="{{ rule.parameters.max_infractions|default:0 }}" required class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white text-slate-800 font-bold">
+                                    </div>
+                                {% elif rule.rule_type == 'FEE_CLEARED' %}
+                                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center space-x-2.5">
+                                        <input type="checkbox" id="chk_{{ rule.id }}" name="require_clearance" {% if rule.parameters.require_clearance %}checked{% endif %} class="w-4 h-4 rounded text-indigo-600 border-slate-300">
+                                        <label for="chk_{{ rule.id }}" class="text-xs font-semibold text-slate-700 cursor-pointer">Require Zero Outstanding Tuition &amp; Mess Arrears</label>
+                                    </div>
+                                {% endif %}
+
+                                <div class="p-3 rounded-xl bg-amber-50/70 border border-amber-200/70 flex items-center space-x-2.5">
+                                    <input type="checkbox" id="hard_{{ rule.id }}" name="is_hard_rule" {% if rule.is_hard_rule %}checked{% endif %} class="w-4 h-4 rounded text-rose-600 border-slate-300">
+                                    <label for="hard_{{ rule.id }}" class="text-xs font-semibold text-amber-900 cursor-pointer">
+                                        Mandatory Hard Rule (Failing this immediately disqualifies candidate)
+                                    </label>
+                                </div>
+
+                                <div class="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
+                                    <button type="button" @click="openEditModal = false" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-semibold cursor-pointer">Cancel</button>
+                                    <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition cursor-pointer">
+                                        Save Changes &amp; Recalculate &rarr;
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-span-2 p-8 text-center text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                    No eligibility policy rules configured yet.
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Applicant Evaluation Ledger & Filter Table -->
+    <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+                <h2 class="text-base font-bold text-slate-900">Intake Evaluation Ledger</h2>
+                <p class="text-xs text-slate-500">Live evaluation records showing student distance, CGPA, conduct, and fee checks.</p>
+            </div>
+
+            <!-- Filter Controls -->
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="?status=ALL" class="px-3 py-1.5 rounded-xl text-xs font-semibold transition {% if status_filter == 'ALL' %}bg-slate-900 text-white{% else %}bg-slate-100 text-slate-600 hover:bg-slate-200{% endif %}">
+                    All ({{ total_applications }})
+                </a>
+                <a href="?status=ELIGIBLE" class="px-3 py-1.5 rounded-xl text-xs font-semibold transition {% if status_filter == 'ELIGIBLE' %}bg-emerald-600 text-white{% else %}bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100{% endif %}">
+                    Eligible ({{ eligible_count }})
+                </a>
+                <a href="?status=INELIGIBLE" class="px-3 py-1.5 rounded-xl text-xs font-semibold transition {% if status_filter == 'INELIGIBLE' %}bg-rose-600 text-white{% else %}bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100{% endif %}">
+                    Disqualified ({{ ineligible_count }})
+                </a>
+
+                <!-- Search -->
+                <form method="GET" class="flex items-center space-x-1 ml-2">
+                    <input type="hidden" name="status" value="{{ status_filter }}">
+                    <input type="text" name="q" value="{{ search_query }}" placeholder="Search student name or ID..." class="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 w-44 sm:w-52 transition">
+                    <button type="submit" class="px-3 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-semibold hover:bg-slate-700 transition">Filter</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left text-xs text-slate-700">
+                <thead class="bg-slate-50 text-[11px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                    <tr>
+                        <th class="px-4 py-3">Applicant</th>
+                        <th class="px-4 py-3">Distance</th>
+                        <th class="px-4 py-3">Academic CGPA</th>
+                        <th class="px-4 py-3">Disciplinary Conduct</th>
+                        <th class="px-4 py-3">Fee Accounts</th>
+                        <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3 text-right">Audit Checklist</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for app in applications %}
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-4 py-3 font-semibold text-slate-900">
+                                {{ app.student_name }}
+                                <span class="block text-[11px] font-normal text-slate-400 font-mono">{{ app.student_id }} · {{ app.programme }}</span>
+                            </td>
+                            <td class="px-4 py-3 font-mono">
+                                <span class="{% if app.distance_from_campus_km < 30 %}text-rose-700 font-bold{% else %}text-slate-800{% endif %}">
+                                    {{ app.distance_from_campus_km|floatformat:1 }} km
+                                </span>
+                                {% if app.distance_from_campus_km < 30 %}
+                                    <span class="block text-[10px] text-rose-600 font-sans">Local (&lt; 30km)</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 font-mono font-bold">
+                                <span class="{% if app.cgpa < 6.0 %}text-rose-700{% else %}text-slate-800{% endif %}">
+                                    {{ app.cgpa|floatformat:2 }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3">
+                                {% if app.has_disciplinary_record %}
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">Infraction Flagged</span>
+                                {% else %}
+                                    <span class="text-emerald-700 font-medium flex items-center space-x-1">
+                                        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                        <span>Clean Record</span>
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                                {% if app.fee_cleared %}
+                                    <span class="text-emerald-700 font-medium flex items-center space-x-1">
+                                        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                        <span>Cleared (Zero Arrears)</span>
+                                    </span>
+                                {% else %}
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">Pending Clearance</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                                {% if app.status in "ELIGIBLE,ALLOCATED,PUBLISHED" %}
+                                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                        ELIGIBLE
+                                    </span>
+                                {% elif app.status == "INELIGIBLE" %}
+                                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                        INELIGIBLE
+                                    </span>
+                                {% else %}
+                                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
+                                        {{ app.get_status_display }}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <a href="{% url 'eligibility:status_detail' app.id %}" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition inline-flex items-center space-x-1">
+                                    <span>Inspection &rarr;</span>
+                                </a>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="7" class="px-4 py-8 text-center text-slate-400">
+                                No applicant records matched your criteria.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
