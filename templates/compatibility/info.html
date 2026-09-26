@@ -1,0 +1,828 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+    {% if is_admin %}Cohort Compatibility &amp; Consent Engine · M5
+    {% elif is_warden %}{{ warden_hostel.name }} Resident Compatibility · M5
+    {% else %}My Lifestyle Compatibility · M5{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{ showQuestionnaireModal: false, guestSlider: {{ user_response.guest_tolerance_score|default:3 }} }">
+
+    <!-- Header Hero Banner with Actions -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div>
+            <div class="flex items-center space-x-2 text-xs font-semibold text-purple-700 mb-1">
+                <span>Compatibility Module (M5)</span>
+                <span class="text-slate-300">•</span>
+                {% if is_admin %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                        Institutional Administration • Campus Scope
+                    </span>
+                {% elif is_warden %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        Hostel Warden Jurisdiction • {{ warden_hostel.name }} ({{ warden_hostel.code }})
+                    </span>
+                {% elif is_student %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Student Applicant Portal • {{ user_app.student_id|default:request.user.username }}
+                    </span>
+                {% else %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        Guest Portal
+                    </span>
+                {% endif %}
+                <span class="text-slate-300">•</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                    DPDP Act 2023 Compliant
+                </span>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
+                {% if is_admin %}
+                    Campus-Wide Cohort Compatibility &amp; Consent Engine
+                {% elif is_warden %}
+                    {{ warden_hostel.name }} Resident Compatibility
+                {% elif is_student %}
+                    My Lifestyle Profile &amp; Roommate Compatibility
+                {% else %}
+                    Lifestyle Compatibility &amp; Consent Protection
+                {% endif %}
+            </h1>
+            <p class="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                {% if is_admin %}
+                    Global administrative dashboard evaluating student lifestyle affinities across sleep schedules, study noise, cleanliness, and visitor tolerances to maximize residential harmony in the M6 Solver.
+                {% elif is_warden %}
+                    Jurisdiction-scoped cohort compatibility metrics and confirmed mutual roommate affinity scores for applicants choosing {{ warden_hostel.name }}.
+                {% elif is_student %}
+                    Consented lifestyle preferences are mathematically vectorized to pair you with harmonious roommates. Raw individual answers are cryptographically shielded and never revealed to peers.
+                {% else %}
+                    Protected lifestyle questionnaire framework ensuring peer harmony under the Digital Personal Data Protection Act 2023.
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <a href="{% url 'preferences:list' %}" class="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition">
+                &larr; Preferences (M4)
+            </a>
+
+            {% if user_app or is_student %}
+                <button @click="showQuestionnaireModal = true" 
+                        type="button" 
+                        class="inline-flex items-center px-4 py-2.5 rounded-xl text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition cursor-pointer">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                    {% if user_response %}Update Lifestyle Profile{% else %}Complete Questionnaire{% endif %}
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Role-Scoped Stats Overview Cards -->
+    {% if is_admin or is_warden %}
+        <!-- Administrative & Warden Stats Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-purple-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Consented Profiles</div>
+                    <div class="text-lg font-bold text-slate-900">{{ cohort_stats.consented_count }} / {{ cohort_stats.total_applicants }}</div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">DPDP Consent Rate</div>
+                    <div class="text-lg font-bold text-emerald-700">{{ cohort_stats.consent_rate }}%</div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-indigo-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Cohort Harmony Index</div>
+                    <div class="text-lg font-bold text-indigo-700">{{ cohort_stats.avg_harmony_pct }}%</div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-teal-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">High Synergy Pairs (&ge;75%)</div>
+                    <div class="text-lg font-bold text-teal-700">{{ cohort_stats.high_affinity_pct }}%</div>
+                </div>
+            </div>
+        </div>
+    {% elif is_student and user_app %}
+        <!-- Student Personal Stats Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full {% if user_response and user_response.consent_recorded %}bg-emerald-500{% else %}bg-amber-500{% endif %} flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">DPDP Act Consent</div>
+                    <div class="text-sm font-bold {% if user_response and user_response.consent_recorded %}text-emerald-700{% else %}text-amber-700{% endif %}">
+                        {% if user_response and user_response.consent_recorded %}Active &amp; Recorded{% else %}Pending Consent{% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-purple-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Sleep Schedule</div>
+                    <div class="text-xs font-bold text-slate-900 truncate max-w-[140px]">
+                        {{ user_response.get_sleep_habit_display|default:"Not Configured" }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-indigo-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Study Noise</div>
+                    <div class="text-xs font-bold text-slate-900 truncate max-w-[140px]">
+                        {{ user_response.get_study_environment_display|default:"Not Configured" }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+                <span class="w-3.5 h-3.5 rounded-full bg-teal-500 flex-shrink-0"></span>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Cleanliness Norm</div>
+                    <div class="text-xs font-bold text-slate-900 truncate max-w-[140px]">
+                        {{ user_response.get_cleanliness_priority_display|default:"Not Configured" }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% elif not request.user.is_authenticated %}
+        <!-- Unauthenticated Guest Prompt Banner -->
+        <div class="bg-gradient-to-r from-slate-900 to-purple-950 text-white rounded-2xl p-6 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="space-y-1">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                    DPDP Act 2023 Protected
+                </span>
+                <h2 class="text-base font-bold text-white">Authentication Required for Compatibility Profile</h2>
+                <p class="text-xs text-slate-300 max-w-xl">
+                    Lifestyle attributes and pairwise compatibility calculations are protected by privacy policies. Please sign in with your university account.
+                </p>
+            </div>
+            <div class="flex items-center space-x-2 flex-shrink-0">
+                <a href="{% url 'login' %}" class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-xs transition">
+                    Sign In &rarr;
+                </a>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Privacy Shield Guarantee Card -->
+    <div class="bg-gradient-to-r from-purple-50/70 via-white to-indigo-50/50 border border-purple-200/80 rounded-2xl p-5 shadow-2xs space-y-3">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="text-sm font-bold text-slate-900">DPDP Act 2023 Privacy Shield Active</h2>
+                    <p class="text-xs text-slate-500">Zero raw answer leakage guarantee across all residential workflows.</p>
+                </div>
+            </div>
+            <span class="text-[10px] font-mono px-2.5 py-1 rounded-full font-bold bg-white text-purple-700 border border-purple-200 shadow-2xs">
+                Encrypted Vector Matching
+            </span>
+        </div>
+        <p class="text-xs text-slate-600 leading-relaxed">
+            Lifestyle survey answers are strictly shielded: <strong>peers and roommates will never see your individual selections</strong> (such as whether you sleep early or have relaxed tidiness). The M6 Solver computes only deterministic pairwise compatibility affinity ($0.00$ to $1.00$) in memory to optimize room harmony.
+        </p>
+    </div>
+
+    <!-- Student View: Mutual Roommate Alignment & Own Questionnaire -->
+    {% if is_student and user_app %}
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left 2 Cols: Mutual Roommate Alignment or Individual Matching -->
+            <div class="lg:col-span-2 space-y-6">
+                {% if partner_app and mutual_partner_breakdown %}
+                    <!-- Live Mutual Partner Alignment Card -->
+                    <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span class="text-[10px] uppercase font-bold tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                        Confirmed Roommate Pairing Affinity
+                                    </span>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-900 mt-1">
+                                    Compatibility with {{ partner_app.student_name }}
+                                </h3>
+                                <p class="text-xs text-slate-500 font-mono">
+                                    {{ user_app.student_id }} ⇄ {{ partner_app.student_id }}
+                                </p>
+                            </div>
+
+                            <div class="text-right">
+                                <div class="text-2xl font-black text-slate-900 font-mono">
+                                    {{ mutual_partner_breakdown.percentage }}%
+                                </div>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border {{ mutual_partner_breakdown.harmony_badge }}">
+                                    {{ mutual_partner_breakdown.harmony_level }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <p class="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200/60 leading-relaxed">
+                            {{ mutual_partner_breakdown.harmony_summary }}
+                        </p>
+
+                        <!-- Dimensional Progress Bars -->
+                        <div class="space-y-3.5">
+                            <div class="space-y-1">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="font-semibold text-slate-800">Sleep Schedule Alignment (40% Weight)</span>
+                                    <span class="font-bold text-slate-900 font-mono">{{ mutual_partner_breakdown.dimensions.sleep.percentage }}%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                    <div class="bg-purple-600 h-2 rounded-full transition-all duration-500" style="width: {{ mutual_partner_breakdown.dimensions.sleep.percentage }}%"></div>
+                                </div>
+                                <span class="text-[11px] text-slate-500 block">{{ mutual_partner_breakdown.dimensions.sleep.description }}</span>
+                            </div>
+
+                            <div class="space-y-1">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="font-semibold text-slate-800">Study Noise &amp; Ambient (30% Weight)</span>
+                                    <span class="font-bold text-slate-900 font-mono">{{ mutual_partner_breakdown.dimensions.study.percentage }}%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                    <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500" style="width: {{ mutual_partner_breakdown.dimensions.study.percentage }}%"></div>
+                                </div>
+                                <span class="text-[11px] text-slate-500 block">{{ mutual_partner_breakdown.dimensions.study.description }}</span>
+                            </div>
+
+                            <div class="space-y-1">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="font-semibold text-slate-800">Cleanliness &amp; Hygiene Standards (20% Weight)</span>
+                                    <span class="font-bold text-slate-900 font-mono">{{ mutual_partner_breakdown.dimensions.cleanliness.percentage }}%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                    <div class="bg-teal-600 h-2 rounded-full transition-all duration-500" style="width: {{ mutual_partner_breakdown.dimensions.cleanliness.percentage }}%"></div>
+                                </div>
+                                <span class="text-[11px] text-slate-500 block">{{ mutual_partner_breakdown.dimensions.cleanliness.description }}</span>
+                            </div>
+
+                            <div class="space-y-1">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="font-semibold text-slate-800">Guest &amp; Visitor Boundaries (10% Weight)</span>
+                                    <span class="font-bold text-slate-900 font-mono">{{ mutual_partner_breakdown.dimensions.guest_tolerance.percentage }}%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                    <div class="bg-amber-600 h-2 rounded-full transition-all duration-500" style="width: {{ mutual_partner_breakdown.dimensions.guest_tolerance.percentage }}%"></div>
+                                </div>
+                                <span class="text-[11px] text-slate-500 block">{{ mutual_partner_breakdown.dimensions.guest_tolerance.description }}</span>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <!-- Individual Automated Matching Guide -->
+                    <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                        <div class="flex items-center space-x-2 text-indigo-700">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                            </svg>
+                            <h3 class="text-sm font-bold text-slate-900">Individual Student Cohort Matching (M6 Optimization)</h3>
+                        </div>
+                        <p class="text-xs text-slate-600 leading-relaxed">
+                            You have not requested a mutual roommate pair in <a href="{% url 'preferences:list' %}" class="text-indigo-600 font-bold underline">Preferences (M4)</a>. The mathematical solver will automatically evaluate your lifestyle vector against all other candidate applicants opting for the same hostel to find your highest-synergy roommate.
+                        </p>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/70 text-xs">
+                                <span class="font-bold text-slate-900 block mb-1">1. Sleep Window Sync</span>
+                                <span class="text-[11px] text-slate-500">Pairs early risers together and clusters night owls to prevent sleep disruption.</span>
+                            </div>
+                            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/70 text-xs">
+                                <span class="font-bold text-slate-900 block mb-1">2. Acoustic Harmony</span>
+                                <span class="text-[11px] text-slate-500">Aligns students requiring quiet study environments into dedicated quiet zones.</span>
+                            </div>
+                            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/70 text-xs">
+                                <span class="font-bold text-slate-900 block mb-1">3. Hygiene Agreement</span>
+                                <span class="text-[11px] text-slate-500">Pairs students with similar cleaning habits to eliminate room upkeep friction.</span>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Right 1 Col: Student's Own Lifestyle Profile Overview -->
+            <div class="space-y-6">
+                <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h3 class="text-sm font-bold text-slate-900">Your Registered Profile</h3>
+                        <button @click="showQuestionnaireModal = true" class="text-xs font-bold text-purple-600 hover:text-purple-800 underline cursor-pointer">
+                            Edit
+                        </button>
+                    </div>
+
+                    {% if user_response %}
+                        <div class="space-y-3 text-xs">
+                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-0.5">
+                                <span class="text-[10px] uppercase font-bold text-slate-400 block">Sleep Habit</span>
+                                <span class="font-bold text-slate-900">{{ user_response.get_sleep_habit_display }}</span>
+                            </div>
+
+                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-0.5">
+                                <span class="text-[10px] uppercase font-bold text-slate-400 block">Study Environment</span>
+                                <span class="font-bold text-slate-900">{{ user_response.get_study_environment_display }}</span>
+                            </div>
+
+                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-0.5">
+                                <span class="text-[10px] uppercase font-bold text-slate-400 block">Cleanliness Priority</span>
+                                <span class="font-bold text-slate-900">{{ user_response.get_cleanliness_priority_display }}</span>
+                            </div>
+
+                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-0.5">
+                                <span class="text-[10px] uppercase font-bold text-slate-400 block">Guest Tolerance Threshold</span>
+                                <span class="font-bold text-slate-900">{{ user_response.guest_tolerance_score }} / 5 (Rating)</span>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-xl space-y-3">
+                            <p>No questionnaire response recorded yet.</p>
+                            <button @click="showQuestionnaireModal = true" class="px-4 py-2 rounded-xl bg-purple-600 text-white text-xs font-semibold shadow-xs">
+                                Fill Questionnaire Now
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Admin & Warden View: Cohort Analytics, Confirmed Mutual Pairs Ledger, and Sandbox Simulator -->
+    {% if is_admin or is_warden %}
+        <!-- Cohort Attribute Distributions Hub -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">
+                        {% if is_admin %}Campus-Wide Cohort Lifestyle Distributions{% else %}{{ warden_hostel.name }} Resident Distributions{% endif %}
+                    </h3>
+                    <p class="text-xs text-slate-500">Aggregate breakdown across all registered applicants in this jurisdiction.</p>
+                </div>
+                <span class="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-200">
+                    {{ cohort_stats.total_responses }} Profiles Sampled
+                </span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <!-- Sleep Distribution Card -->
+                <div class="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-3">
+                    <span class="text-xs font-bold text-slate-900 block border-b border-slate-200/60 pb-1.5">
+                        Sleep Schedules (40% Weight)
+                    </span>
+                    <div class="space-y-2.5">
+                        {% for s in cohort_stats.sleep_dist %}
+                            <div class="space-y-1">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-slate-600 font-medium">{{ s.label }}</span>
+                                    <span class="font-mono font-bold text-slate-900">{{ s.count }} ({{ s.pct }}%)</span>
+                                </div>
+                                <div class="w-full bg-slate-200/60 rounded-full h-1.5 overflow-hidden">
+                                    <div class="bg-purple-600 h-1.5 rounded-full" style="width: {{ s.pct }}%"></div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Study Distribution Card -->
+                <div class="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-3">
+                    <span class="text-xs font-bold text-slate-900 block border-b border-slate-200/60 pb-1.5">
+                        Study Environments (30% Weight)
+                    </span>
+                    <div class="space-y-2.5">
+                        {% for s in cohort_stats.study_dist %}
+                            <div class="space-y-1">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-slate-600 font-medium">{{ s.label }}</span>
+                                    <span class="font-mono font-bold text-slate-900">{{ s.count }} ({{ s.pct }}%)</span>
+                                </div>
+                                <div class="w-full bg-slate-200/60 rounded-full h-1.5 overflow-hidden">
+                                    <div class="bg-indigo-600 h-1.5 rounded-full" style="width: {{ s.pct }}%"></div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Cleanliness Distribution Card -->
+                <div class="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-3">
+                    <span class="text-xs font-bold text-slate-900 block border-b border-slate-200/60 pb-1.5">
+                        Cleanliness Standards (20% Weight)
+                    </span>
+                    <div class="space-y-2.5">
+                        {% for s in cohort_stats.clean_dist %}
+                            <div class="space-y-1">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-slate-600 font-medium">{{ s.label }}</span>
+                                    <span class="font-mono font-bold text-slate-900">{{ s.count }} ({{ s.pct }}%)</span>
+                                </div>
+                                <div class="w-full bg-slate-200/60 rounded-full h-1.5 overflow-hidden">
+                                    <div class="bg-teal-600 h-1.5 rounded-full" style="width: {{ s.pct }}%"></div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirmed Mutual Roommate Pairs Compatibility Ledger -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">
+                        {% if is_admin %}All Confirmed Mutual Roommate Pairs Compatibility{% else %}{{ warden_hostel.name }} Confirmed Pairs Compatibility{% endif %}
+                    </h3>
+                    <p class="text-xs text-slate-500">Pairwise compatibility scores computed for co-allocation constraint satisfaction in M6.</p>
+                </div>
+                <span class="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                    {{ mutual_pairs_compatibility|length }} Verified Pairs
+                </span>
+            </div>
+
+            <div class="overflow-x-auto rounded-xl border border-slate-200">
+                <table class="w-full text-left text-xs text-slate-700">
+                    <thead class="bg-slate-50 text-[11px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                        <tr>
+                            <th class="px-4 py-3">Applicant Pair</th>
+                            <th class="px-4 py-3">Pairwise Compatibility Score</th>
+                            <th class="px-4 py-3">Harmony Level</th>
+                            <th class="px-4 py-3">Sleep / Study / Clean Alignment</th>
+                            <th class="px-4 py-3 text-right">M6 Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for pair in mutual_pairs_compatibility %}
+                            <tr class="hover:bg-slate-50/80 transition">
+                                <td class="px-4 py-3">
+                                    <div class="font-bold text-slate-900">
+                                        {{ pair.student_a.student_name }} &amp; {{ pair.student_b.student_name }}
+                                    </div>
+                                    <span class="font-mono text-[11px] text-slate-400">
+                                        {{ pair.student_a.student_id }} ⇄ {{ pair.student_b.student_id }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-16 bg-slate-100 rounded-full h-2 overflow-hidden">
+                                            <div class="bg-emerald-600 h-2 rounded-full" style="width: {{ pair.percentage }}%"></div>
+                                        </div>
+                                        <span class="font-mono font-bold text-slate-900">{{ pair.percentage }}%</span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border {{ pair.harmony_badge }}">
+                                        {{ pair.harmony_level }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center space-x-1.5 text-[10px] font-mono">
+                                        <span class="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200" title="Sleep: {{ pair.dimensions.sleep.description }}">
+                                            Sleep: {{ pair.dimensions.sleep.percentage }}%
+                                        </span>
+                                        <span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200" title="Study: {{ pair.dimensions.study.description }}">
+                                            Study: {{ pair.dimensions.study.percentage }}%
+                                        </span>
+                                        <span class="px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200" title="Cleanliness: {{ pair.dimensions.cleanliness.description }}">
+                                            Clean: {{ pair.dimensions.cleanliness.percentage }}%
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                        Co-Allocate
+                                    </span>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-4 py-8 text-center text-slate-400">
+                                    No mutual roommate pairs recorded in this jurisdiction.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pairwise Compatibility Simulator / Testing Sandbox -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900">Pairwise Compatibility Simulator Sandbox</h3>
+                        <p class="text-xs text-slate-500">Test compatibility between any two candidate applicants to preview M6 Solver scoring.</p>
+                    </div>
+                </div>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                    Deterministic Model
+                </span>
+            </div>
+
+            <form method="GET" action="{% url 'compatibility:info' %}" 
+                  x-data="{
+                      allCandidates: [
+                          {% for a in candidate_applicants %}
+                          {
+                              id: '{{ a.id }}',
+                              name: '{{ a.student_name|escapejs }}',
+                              roll: '{{ a.student_id|escapejs }}',
+                              gender: '{{ a.gender }}',
+                              genderDisplay: '{{ a.get_gender_display|escapejs }}'
+                          },
+                          {% endfor %}
+                      ],
+                      selectedA: '{{ sim_student_a_id|default:'' }}',
+                      selectedB: '{{ sim_student_b_id|default:'' }}',
+                      get currentGender() {
+                          const found = this.allCandidates.find(c => c.id === this.selectedA);
+                          return found ? found.gender : '';
+                      },
+                      get eligibleB() {
+                          if (!this.selectedA) return this.allCandidates;
+                          return this.allCandidates.filter(c => c.id !== this.selectedA && (!this.currentGender || c.gender === this.currentGender));
+                      }
+                  }"
+                  class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Select Candidate A</label>
+                    <select name="sim_a" x-model="selectedA" @change="if (selectedB) { const bObj = allCandidates.find(c => c.id === selectedB); if (bObj && bObj.gender !== currentGender) selectedB = ''; }" required class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-800 focus:ring-2 focus:ring-purple-500">
+                        <option value="">Select Candidate A</option>
+                        <template x-for="a in allCandidates" :key="a.id">
+                            <option :value="a.id" :selected="selectedA === a.id" x-text="`${a.name} (${a.roll}) [${a.genderDisplay}]`"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">
+                        Select Candidate B
+                        <span class="text-[10px] text-purple-600 font-normal ml-1" x-show="currentGender" x-text="`(Same Gender: ${currentGender === 'M' ? 'Male' : 'Female'})`"></span>
+                    </label>
+                    <select name="sim_b" x-model="selectedB" required class="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-800 focus:ring-2 focus:ring-purple-500">
+                        <option value="">Select Candidate B</option>
+                        <template x-for="b in eligibleB" :key="b.id">
+                            <option :value="b.id" :selected="selectedB === b.id" x-text="`${b.name} (${b.roll}) [${b.genderDisplay}]`"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer">
+                        Run Simulation &rarr;
+                    </button>
+                    {% if simulation_result %}
+                        <a href="{% url 'compatibility:info' %}" class="px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition">
+                            Reset
+                        </a>
+                    {% endif %}
+                </div>
+            </form>
+
+            {% if simulation_result %}
+                <div class="mt-4 p-5 rounded-2xl bg-gradient-to-r from-purple-50/80 via-white to-indigo-50/60 border border-purple-200 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-100 pb-3">
+                        <div>
+                            <span class="text-[10px] uppercase font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-full border border-purple-200">
+                                Simulation Output
+                            </span>
+                            <h4 class="text-sm font-bold text-slate-900 mt-1">
+                                {{ simulation_result.student_a.student_name }} &amp; {{ simulation_result.student_b.student_name }}
+                            </h4>
+                            <p class="text-xs text-slate-500 font-mono">
+                                {{ simulation_result.student_a.student_id }} ⇄ {{ simulation_result.student_b.student_id }}
+                            </p>
+                            <div class="mt-1">
+                                {% if simulation_result.gender_match %}
+                                    <span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <span>✓ Same-Gender Roommate Match ({{ simulation_result.student_a.get_gender_display }})</span>
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                        <span>⚠️ Cross-Gender (Prohibited by Hostel Policy)</span>
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-2xl font-black text-purple-900 font-mono">
+                                {{ simulation_result.breakdown.percentage }}%
+                            </div>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border {{ simulation_result.breakdown.harmony_badge }}">
+                                {{ simulation_result.breakdown.harmony_level }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-slate-700 bg-white/80 p-3 rounded-xl border border-purple-100 leading-relaxed">
+                        {{ simulation_result.breakdown.harmony_summary }}
+                    </p>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                        <div class="p-3 bg-white rounded-xl border border-slate-200/80">
+                            <span class="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Sleep (40%)</span>
+                            <span class="font-bold text-purple-900 text-sm font-mono">{{ simulation_result.breakdown.dimensions.sleep.percentage }}%</span>
+                            <span class="text-[10px] text-slate-500 block mt-1">{{ simulation_result.breakdown.dimensions.sleep.status }}</span>
+                        </div>
+                        <div class="p-3 bg-white rounded-xl border border-slate-200/80">
+                            <span class="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Study (30%)</span>
+                            <span class="font-bold text-indigo-900 text-sm font-mono">{{ simulation_result.breakdown.dimensions.study.percentage }}%</span>
+                            <span class="text-[10px] text-slate-500 block mt-1">{{ simulation_result.breakdown.dimensions.study.status }}</span>
+                        </div>
+                        <div class="p-3 bg-white rounded-xl border border-slate-200/80">
+                            <span class="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Cleanliness (20%)</span>
+                            <span class="font-bold text-teal-900 text-sm font-mono">{{ simulation_result.breakdown.dimensions.cleanliness.percentage }}%</span>
+                            <span class="text-[10px] text-slate-500 block mt-1">{{ simulation_result.breakdown.dimensions.cleanliness.status }}</span>
+                        </div>
+                        <div class="p-3 bg-white rounded-xl border border-slate-200/80">
+                            <span class="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Guest (10%)</span>
+                            <span class="font-bold text-amber-900 text-sm font-mono">{{ simulation_result.breakdown.dimensions.guest_tolerance.percentage }}%</span>
+                            <span class="text-[10px] text-slate-500 block mt-1">{{ simulation_result.breakdown.dimensions.guest_tolerance.status }}</span>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <!-- Lifestyle Questionnaire Modal (Interactive Submission with DPDP Consent) -->
+    <div x-show="showQuestionnaireModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto" @click.away="showQuestionnaireModal = false">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">Consented Lifestyle Questionnaire</h3>
+                    <p class="text-xs text-slate-500">DPDP Act 2023 compliant data capture for automated roommate matching.</p>
+                </div>
+                <button type="button" @click="showQuestionnaireModal = false" class="text-slate-400 hover:text-slate-600 p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form method="POST" action="{% url 'compatibility:info' %}" class="space-y-4">
+                {% csrf_token %}
+                {% if user_app %}
+                    <input type="hidden" name="application_id" value="{{ user_app.id }}">
+                    <div class="p-3 bg-purple-50/70 border border-purple-100 rounded-xl text-xs flex items-center justify-between">
+                        <div>
+                            <span class="text-slate-500">Student Profile:</span>
+                            <span class="font-bold text-slate-900 ml-1">{{ user_app.student_name }}</span>
+                        </div>
+                        <span class="font-mono font-bold text-purple-700 bg-white px-2 py-0.5 rounded border border-purple-200">
+                            {{ user_app.student_id }}
+                        </span>
+                    </div>
+                {% endif %}
+
+                <!-- Sleep Habits (40% Weight) -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-slate-800">
+                        1. Typical Sleep &amp; Wake-up Schedule (40% Weight) *
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                        <label class="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-purple-50/50 cursor-pointer flex flex-col justify-between">
+                            <div>
+                                <input type="radio" name="sleep_habit" value="EARLY_BIRD" class="text-purple-600" {% if user_response and user_response.sleep_habit == "EARLY_BIRD" %}checked{% endif %}>
+                                <span class="font-bold text-slate-900 block mt-1">Early Bird</span>
+                                <span class="text-[11px] text-slate-500 block">Sleeps before 11 PM</span>
+                            </div>
+                        </label>
+                        <label class="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-purple-50/50 cursor-pointer flex flex-col justify-between">
+                            <div>
+                                <input type="radio" name="sleep_habit" value="NIGHT_OWL" class="text-purple-600" {% if user_response and user_response.sleep_habit == "NIGHT_OWL" %}checked{% endif %}>
+                                <span class="font-bold text-slate-900 block mt-1">Night Owl</span>
+                                <span class="text-[11px] text-slate-500 block">Sleeps after 1 AM</span>
+                            </div>
+                        </label>
+                        <label class="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-purple-50/50 cursor-pointer flex flex-col justify-between">
+                            <div>
+                                <input type="radio" name="sleep_habit" value="FLEXIBLE" class="text-purple-600" {% if not user_response or user_response.sleep_habit == "FLEXIBLE" %}checked{% endif %}>
+                                <span class="font-bold text-slate-900 block mt-1">Flexible</span>
+                                <span class="text-[11px] text-slate-500 block">Adaptable schedule</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Study Environment (30% Weight) -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-slate-800">
+                        2. In-Room Study Atmosphere (30% Weight) *
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                        <label class="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-indigo-50/50 cursor-pointer flex flex-col justify-between">
+                            <div>
+                                <input type="radio" name="study_environment" value="SILENT" class="text-indigo-600" {% if user_response and user_response.study_environment == "SILENT" %}checked{% endif %}>
+                                <span class="font-bold text-slate-900 block mt-1">Silent Focus</span>
+                                <span class="text-[11px] text-slate-500 block">Zero background noise</span>
+                            </div>
+                        </label>
+                        <label class="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-indigo-50/50 cursor-pointer flex flex-col justify-between">
+                            <div>
+                                <input type="radio" name="study_environment" value="LIGHT_MUSIC" class="text-indigo-600" {% if not user_response or user_response.study_environment == "LIGHT_MUSIC" %}checked{% endif %}>
+                                <span class="font-bold text-slate-900 block mt-1">Ambient Music</span>
+                                <span class="text-[11px] text-slate-500 block">Low background sound</span>
+                            </div>
+                        </label>
+                        <label class="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-indigo-50/50 cursor-pointer flex flex-col justify-between">
+                            <div>
+                                <input type="radio" name="study_environment" value="COLLABORATIVE" class="text-indigo-600" {% if user_response and user_response.study_environment == "COLLABORATIVE" %}checked{% endif %}>
+                                <span class="font-bold text-slate-900 block mt-1">Collaborative</span>
+                                <span class="text-[11px] text-slate-500 block">Discussion friendly</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Cleanliness Standards (20% Weight) -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-slate-800">
+                        3. Room Cleanliness &amp; Hygiene Standards (20% Weight) *
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                        <label class="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-teal-50/50 cursor-pointer flex flex-col justify-between">
+                            <div>
+                                <input type="radio" name="cleanliness_priority" value="VERY_STRICT" class="text-teal-600" {% if user_response and user_response.cleanliness_priority == "VERY_STRICT" %}checked{% endif %}>
+                                <span class="font-bold text-slate-900 block mt-1">Very Strict</span>
+                                <span class="text-[11px] text-slate-500 block">Rigorous daily cleaning</span>
+                            </div>
+                        </label>
+                        <label class="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-teal-50/50 cursor-pointer flex flex-col justify-between">
+                            <div>
+                                <input type="radio" name="cleanliness_priority" value="MODERATE" class="text-teal-600" {% if not user_response or user_response.cleanliness_priority == "MODERATE" %}checked{% endif %}>
+                                <span class="font-bold text-slate-900 block mt-1">Moderate</span>
+                                <span class="text-[11px] text-slate-500 block">Regular daily routine</span>
+                            </div>
+                        </label>
+                        <label class="p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-teal-50/50 cursor-pointer flex flex-col justify-between">
+                            <div>
+                                <input type="radio" name="cleanliness_priority" value="RELAXED" class="text-teal-600" {% if user_response and user_response.cleanliness_priority == "RELAXED" %}checked{% endif %}>
+                                <span class="font-bold text-slate-900 block mt-1">Casual</span>
+                                <span class="text-[11px] text-slate-500 block">Relaxed tidiness</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Guest & Visitor Tolerance (10% Weight) -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between text-xs">
+                        <label class="font-bold text-slate-800">
+                            4. In-Room Guest &amp; Visitor Tolerance (10% Weight) *
+                        </label>
+                        <span class="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200" x-text="guestSlider + ' / 5'">
+                            {{ user_response.guest_tolerance_score|default:3 }} / 5
+                        </span>
+                    </div>
+                    <input type="range" name="guest_tolerance_score" min="1" max="5" step="1" x-model="guestSlider" class="w-full accent-purple-600 cursor-pointer">
+                    <div class="flex items-center justify-between text-[10px] text-slate-400">
+                        <span>1: Private (No Visitors)</span>
+                        <span>3: Moderate (Daytime Only)</span>
+                        <span>5: Highly Social (Frequent Guests)</span>
+                    </div>
+                </div>
+
+                <!-- Mandatory DPDP Act 2023 Explicit Consent -->
+                <div class="p-3.5 rounded-xl border border-purple-200 bg-purple-50/60 space-y-2">
+                    <label class="flex items-start space-x-2.5 cursor-pointer">
+                        <input type="checkbox" name="consent_recorded" required class="mt-0.5 rounded text-purple-600 focus:ring-purple-500" {% if user_response and user_response.consent_recorded %}checked{% endif %}>
+                        <span class="text-xs text-slate-700 leading-relaxed">
+                            <strong>Explicit Consent (DPDP Act 2023):</strong> I consent to the processing of my lifestyle survey responses exclusively for automated roommate compatibility optimization in the M6 solver. I understand my raw answers will remain strictly private and will never be disclosed to other students.
+                        </span>
+                    </label>
+                </div>
+
+                <div class="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
+                    <button type="button" @click="showQuestionnaireModal = false" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-xs cursor-pointer">
+                        Save Lifestyle Profile
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
