@@ -1,0 +1,5 @@
+-r base.txt
+
+gunicorn>=22.0.0
+django-storages[boto3]>=1.14.2
+sentry-sdk>=2.0.1
