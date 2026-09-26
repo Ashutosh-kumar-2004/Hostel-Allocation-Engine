@@ -1,0 +1,507 @@
+{% extends 'base.html' %}
+
+{% block title %}Application Intake &amp; Student Registry (M2){% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{ showIntakeModal: false, statusModalApp: null }">
+    <!-- Header Hero Banner with Actions -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div>
+            <div class="flex items-center space-x-2 text-xs font-semibold text-indigo-700 mb-1">
+                <span>Applications Module</span>
+                <span class="text-slate-300">•</span>
+                <span>Intake Registry</span>
+                {% if active_cycle %}
+                    <span class="text-slate-300">•</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        {{ active_cycle.name }} ({{ active_cycle.get_status_display }})
+                    </span>
+                {% endif %}
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Student Application Intake</h1>
+            <p class="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                Official intake registry for residential accommodation. Captures student registration numbers (123XXXXX), academic programmes, accessibility flags, and cycle windows.
+            </p>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <!-- New Application Intake Button -->
+            <button @click="showIntakeModal = true" 
+                    type="button" 
+                    class="inline-flex items-center px-4 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition cursor-pointer">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                {% if user_app %}Edit My Application{% else %}+ New Student Intake Application{% endif %}
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Overview Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+            <span class="w-3.5 h-3.5 rounded-full bg-indigo-500 flex-shrink-0"></span>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Total Applicants</div>
+                <div class="text-lg font-bold text-slate-900">{{ applications|length }}</div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+            <span class="w-3.5 h-3.5 rounded-full bg-blue-500 flex-shrink-0"></span>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Active Cycle</div>
+                <div class="text-sm font-bold text-blue-700 truncate max-w-[130px]">{{ active_cycle.code|default:"None" }}</div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+            <span class="w-3.5 h-3.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Next Step</div>
+                <a href="{% url 'preferences:list' %}" class="text-xs font-bold text-emerald-700 hover:underline">Rank Preferences &rarr;</a>
+            </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+            <span class="w-3.5 h-3.5 rounded-full bg-purple-500 flex-shrink-0"></span>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Compatibility</div>
+                <a href="{% url 'compatibility:info' %}" class="text-xs font-bold text-purple-700 hover:underline">Lifestyle Survey &rarr;</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Registered Applicants Table -->
+    <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-bold text-slate-900">Registered Student Candidates ({{ applications|length }})</h2>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left text-xs text-slate-700">
+                <thead class="bg-slate-50 text-[11px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                    <tr>
+                        <th class="px-4 py-3">Student Name</th>
+                        <th class="px-4 py-3">Reg No (123XXX)</th>
+                        <th class="px-4 py-3">Gender</th>
+                        <th class="px-4 py-3">Programme</th>
+                        <th class="px-4 py-3">Cycle</th>
+                        <th class="px-4 py-3">Accessible</th>
+                        <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3 text-center">Preferences</th>
+                        {% if is_staff_or_admin %}
+                            <th class="px-4 py-3 text-right">Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for app in applications %}
+                        <tr class="hover:bg-slate-50" x-data="{ openPrefModal: false }">
+                            <td class="px-4 py-3 font-semibold text-slate-900">
+                                <div>{{ app.student_name }}</div>
+                                <div class="text-[10px] text-slate-400">{{ app.student_email }}</div>
+                            </td>
+                            <td class="px-4 py-3 font-mono text-slate-600 font-semibold">{{ app.student_id }}</td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">{{ app.get_gender_display }}</span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div>{{ app.programme }}</div>
+                                <div class="text-[10px] text-slate-400">Year {{ app.year_of_study }}</div>
+                            </td>
+                            <td class="px-4 py-3 text-slate-500">{{ app.cycle.code }}</td>
+                            <td class="px-4 py-3">
+                                {% if app.requires_accessible_room %}
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">Yes</span>
+                                {% else %}
+                                    <span class="text-slate-400">No</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                                <a href="{% url 'eligibility:status_detail' app.id %}" 
+                                   title="Inspect Policy & Eligibility Checklist"
+                                   class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition hover:opacity-90 shadow-2xs
+                                    {% if app.status == 'ALLOCATED' or app.status == 'PUBLISHED' %}bg-emerald-100 text-emerald-800 border border-emerald-200
+                                    {% elif app.status == 'ELIGIBLE' %}bg-blue-100 text-blue-800 border border-blue-200
+                                    {% elif app.status == 'INELIGIBLE' or app.status == 'REJECTED' %}bg-rose-100 text-rose-800 border border-rose-200
+                                    {% else %}bg-slate-100 text-slate-700 border border-slate-200{% endif %}">
+                                    <span>{{ app.get_status_display }}</span>
+                                    <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                    </svg>
+                                </a>
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <!-- Eye Icon Button to open Preferences Modal -->
+                                <button @click="openPrefModal = true" 
+                                        type="button" 
+                                        title="View Opted Preferences"
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/60 shadow-2xs transition">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                    </svg>
+                                </button>
+
+                                <!-- Preferences Modal Dialog -->
+                                <div x-show="openPrefModal" 
+                                     x-cloak 
+                                     class="fixed inset-0 z-50 overflow-y-auto" 
+                                     role="dialog" 
+                                     aria-modal="true">
+                                    <!-- Backdrop -->
+                                    <div x-show="openPrefModal"
+                                         x-transition:enter="ease-out duration-200"
+                                         x-transition:enter-start="opacity-0"
+                                         x-transition:enter-end="opacity-100"
+                                         x-transition:leave="ease-in duration-150"
+                                         x-transition:leave-start="opacity-100"
+                                         x-transition:leave-end="opacity-0"
+                                         @click="openPrefModal = false" 
+                                         class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs"></div>
+
+                                    <!-- Modal Panel -->
+                                    <div class="flex min-h-full items-center justify-center p-4 text-center">
+                                        <div x-show="openPrefModal"
+                                             x-transition:enter="ease-out duration-200"
+                                             x-transition:enter-start="opacity-0 scale-95"
+                                             x-transition:enter-end="opacity-100 scale-100"
+                                             x-transition:leave="ease-in duration-150"
+                                             x-transition:leave-start="opacity-100 scale-100"
+                                             x-transition:leave-end="opacity-0 scale-95"
+                                             @click.away="openPrefModal = false" 
+                                             class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all w-full max-w-lg border border-slate-200 p-6 space-y-5">
+                                            
+                                            <!-- Modal Header -->
+                                            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                                                <div>
+                                                    <div class="flex items-center space-x-2 text-[11px] font-bold text-indigo-700">
+                                                        <span>Student Preferences</span>
+                                                        <span class="text-slate-300">•</span>
+                                                        <span class="font-mono text-slate-500">{{ app.student_id }}</span>
+                                                    </div>
+                                                    <h3 class="text-lg font-bold text-slate-900">{{ app.student_name }}</h3>
+                                                </div>
+                                                <button @click="openPrefModal = false" type="button" class="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition">
+                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+
+                                            <!-- Ranked Hostel Preferences Section -->
+                                            <div>
+                                                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Ranked Hostel &amp; Room Choices</h4>
+                                                <div class="space-y-2">
+                                                    {% for pref in app.preferences.all %}
+                                                        <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
+                                                            <div class="flex items-center space-x-3">
+                                                                <span class="w-6 h-6 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center text-[11px]">
+                                                                    #{{ pref.rank }}
+                                                                </span>
+                                                                <div>
+                                                                    <div class="font-bold text-slate-900">{{ pref.preferred_hostel.name }}</div>
+                                                                    <div class="text-[11px] text-slate-500">Hostel Code: {{ pref.preferred_hostel.code }}</div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="text-right">
+                                                                <span class="px-2.5 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                                    {{ pref.get_preferred_room_type_display }}
+                                                                </span>
+                                                                {% if pref.preferred_roommate_id %}
+                                                                    <div class="text-[10px] text-slate-500 mt-1">
+                                                                        Roommate: <span class="font-mono text-slate-700 font-semibold">{{ pref.preferred_roommate_id }}</span>
+                                                                    </div>
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                    {% empty %}
+                                                        <div class="p-3 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                                            No ranked preferences specified yet.
+                                                        </div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+
+                                            <!-- Consented Lifestyle Attributes -->
+                                            {% if app.compatibility_response %}
+                                            <div>
+                                                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Lifestyle Compatibility Profile</h4>
+                                                <div class="grid grid-cols-2 gap-2 text-xs">
+                                                    <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
+                                                        <span class="text-[10px] text-slate-400 uppercase font-bold block">Sleep Schedule</span>
+                                                        <span class="font-semibold text-slate-800">{{ app.compatibility_response.get_sleep_habit_display }}</span>
+                                                    </div>
+                                                    <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
+                                                        <span class="text-[10px] text-slate-400 uppercase font-bold block">Study Environment</span>
+                                                        <span class="font-semibold text-slate-800">{{ app.compatibility_response.get_study_environment_display }}</span>
+                                                    </div>
+                                                    <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
+                                                        <span class="text-[10px] text-slate-400 uppercase font-bold block">Cleanliness Standard</span>
+                                                        <span class="font-semibold text-slate-800">{{ app.compatibility_response.get_cleanliness_priority_display }}</span>
+                                                    </div>
+                                                    <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
+                                                        <span class="text-[10px] text-slate-400 uppercase font-bold block">Guest Tolerance</span>
+                                                        <span class="font-semibold text-slate-800">{{ app.compatibility_response.guest_tolerance_score }} / 5</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endif %}
+
+                                            <!-- Academic & Distance Specs -->
+                                            <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-xs space-y-1 text-slate-600">
+                                                <div class="flex justify-between">
+                                                    <span>Academic Score / CGPA:</span>
+                                                    <span class="font-bold text-slate-800">{{ app.cgpa }}</span>
+                                                </div>
+                                                <div class="flex justify-between">
+                                                    <span>Distance from Campus:</span>
+                                                    <span class="font-bold text-slate-800">{{ app.distance_from_campus_km }} km</span>
+                                                </div>
+                                                <div class="flex justify-between">
+                                                    <span>Accessibility Accommodation:</span>
+                                                    <span class="font-bold {% if app.requires_accessible_room %}text-amber-700{% else %}text-slate-800{% endif %}">
+                                                        {% if app.requires_accessible_room %}Yes (Ground Floor / Accessible){% else %}Standard{% endif %}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <!-- Modal Footer -->
+                                            <div class="pt-2 flex justify-end">
+                                                <button @click="openPrefModal = false" 
+                                                        type="button" 
+                                                        class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-900 text-white transition shadow-sm">
+                                                    Close
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            {% if is_staff_or_admin %}
+                                <td class="px-4 py-3 text-right">
+                                    <form method="POST" class="inline-flex items-center space-x-1.5">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="update_status">
+                                        <input type="hidden" name="application_id" value="{{ app.id }}">
+                                        <select name="status" 
+                                                onchange="this.form.submit()" 
+                                                class="text-[10px] font-semibold rounded-lg border border-slate-200 py-1 px-1.5 bg-slate-50 focus:bg-white text-slate-700 cursor-pointer">
+                                            <option value="SUBMITTED" {% if app.status == 'SUBMITTED' %}selected{% endif %}>Submitted</option>
+                                            <option value="ELIGIBLE" {% if app.status == 'ELIGIBLE' %}selected{% endif %}>Eligible</option>
+                                            <option value="INELIGIBLE" {% if app.status == 'INELIGIBLE' %}selected{% endif %}>Ineligible</option>
+                                            <option value="ALLOCATED" {% if app.status == 'ALLOCATED' %}selected{% endif %}>Allocated</option>
+                                            <option value="WAITLISTED" {% if app.status == 'WAITLISTED' %}selected{% endif %}>Waitlisted</option>
+                                            <option value="REJECTED" {% if app.status == 'REJECTED' %}selected{% endif %}>Rejected</option>
+                                        </select>
+                                    </form>
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="9" class="px-4 py-8 text-center text-slate-400">
+                                No applications registered yet.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Student Application Intake Modal (Actual Functional Intake Form) -->
+    <div x-show="showIntakeModal" 
+         x-cloak 
+         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 overflow-y-auto"
+         role="dialog"
+         aria-modal="true">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full p-6 space-y-5 my-8" 
+             @click.away="showIntakeModal = false">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                    <div class="flex items-center space-x-2 text-[11px] font-bold text-indigo-700">
+                        <span>Residential Accommodation Registry</span>
+                        <span class="text-slate-300">•</span>
+                        <span>Student Intake</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-900">
+                        {% if user_app %}Update Your Residential Application{% else %}Submit New Student Application{% endif %}
+                    </h3>
+                </div>
+                <button @click="showIntakeModal = false" type="button" class="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Intake Application Form -->
+            <form method="POST" class="space-y-4 text-xs">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="submit_application">
+
+                <!-- Cycle Selection -->
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Target Allocation Cycle *</label>
+                    <select name="cycle_id" class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800">
+                        {% for c in cycles %}
+                            <option value="{{ c.id }}" {% if active_cycle and active_cycle.id == c.id %}selected{% endif %}>
+                                {{ c.name }} ({{ c.code }}) — {{ c.get_status_display }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Identity Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Student Registration ID (123XXX) *</label>
+                        <input type="text" 
+                               name="student_id" 
+                               required 
+                               placeholder="e.g. 12300901"
+                               value="{% if user_app %}{{ user_app.student_id }}{% elif request.user.is_authenticated and request.user.username != 'admin' %}{{ request.user.username }}{% endif %}"
+                               class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-bold text-slate-800">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Full Student Name *</label>
+                        <input type="text" 
+                               name="student_name" 
+                               required 
+                               placeholder="e.g. Aditi Rao"
+                               value="{% if user_app %}{{ user_app.student_name }}{% elif request.user.is_authenticated %}{{ request.user.get_full_name|default:request.user.username }}{% endif %}"
+                               class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-800">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Institutional Email *</label>
+                        <input type="email" 
+                               name="student_email" 
+                               required 
+                               placeholder="student@university.edu"
+                               value="{% if user_app %}{{ user_app.student_email }}{% elif request.user.is_authenticated %}{{ request.user.email }}{% endif %}"
+                               class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Phone Number</label>
+                        <input type="tel" 
+                               name="phone_number" 
+                               placeholder="+91 9876543210"
+                               value="{% if user_app %}{{ user_app.phone_number }}{% endif %}"
+                               class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Resident Gender *</label>
+                        <select name="gender" class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-800">
+                            <option value="M" {% if user_app and user_app.gender == 'M' %}selected{% endif %}>Male</option>
+                            <option value="F" {% if user_app and user_app.gender == 'F' %}selected{% endif %}>Female</option>
+                            <option value="O" {% if user_app and user_app.gender == 'O' %}selected{% endif %}>Other</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Academic Specs -->
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div class="sm:col-span-2">
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Academic Programme</label>
+                        <input type="text" 
+                               name="programme" 
+                               placeholder="B.Tech Computer Science"
+                               value="{% if user_app %}{{ user_app.programme }}{% else %}B.Tech Computer Science{% endif %}"
+                               class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Year of Study</label>
+                        <select name="year_of_study" class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800">
+                            <option value="1" {% if user_app and user_app.year_of_study == 1 %}selected{% endif %}>Year 1</option>
+                            <option value="2" {% if user_app and user_app.year_of_study == 2 %}selected{% endif %}>Year 2</option>
+                            <option value="3" {% if user_app and user_app.year_of_study == 3 %}selected{% endif %}>Year 3</option>
+                            <option value="4" {% if user_app and user_app.year_of_study == 4 %}selected{% endif %}>Year 4</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Current CGPA</label>
+                        <input type="number" 
+                               step="0.01" 
+                               min="0" 
+                               max="10" 
+                               name="cgpa" 
+                               value="{% if user_app %}{{ user_app.cgpa }}{% else %}8.20{% endif %}"
+                               class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 font-bold">
+                    </div>
+                </div>
+
+                <!-- Distance and Accessibility -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Distance From Campus (KM)</label>
+                        <input type="number" 
+                               step="0.5" 
+                               min="0" 
+                               name="distance_from_campus_km" 
+                               value="{% if user_app %}{{ user_app.distance_from_campus_km }}{% else %}65.0{% endif %}"
+                               class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800">
+                    </div>
+
+                    <!-- Accessibility Checkbox -->
+                    <div class="pt-4 flex items-center space-x-2.5">
+                        <input type="checkbox" 
+                               id="req_acc" 
+                               name="requires_accessible_room" 
+                               {% if user_app and user_app.requires_accessible_room %}checked{% endif %}
+                               class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                        <label for="req_acc" class="text-xs font-semibold text-slate-700 cursor-pointer">
+                            Requires Accessible / Ground Floor Room (Medical / Wheelchair)
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Permanent Residential Address</label>
+                    <textarea name="address" 
+                              rows="2" 
+                              placeholder="City, State, PIN code"
+                              class="w-full rounded-xl border border-slate-200 px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800">{% if user_app %}{{ user_app.address }}{% endif %}</textarea>
+                </div>
+
+                <!-- Institutional Fee Clearance Declaration -->
+                <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start space-x-3">
+                    <input type="checkbox" 
+                           id="fee_cleared" 
+                           name="fee_cleared" 
+                           {% if user_app %}{% if user_app.fee_cleared %}checked{% endif %}{% else %}checked{% endif %}
+                           class="w-4 h-4 mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                    <label for="fee_cleared" class="text-xs text-slate-700 cursor-pointer">
+                        <span class="font-bold text-slate-900 block">Institutional Dues &amp; Accounts Clearance *</span>
+                        <span class="text-slate-500 text-[11px] block mt-0.5">
+                            I declare that all prior semester tuition, academic fees, and hostel mess accounts are verified and cleared with zero outstanding arrears.
+                        </span>
+                    </label>
+                </div>
+
+                <!-- Modal Actions -->
+                <div class="pt-3 border-t border-slate-100 flex items-center justify-end space-x-3">
+                    <button type="button" 
+                            @click="showIntakeModal = false" 
+                            class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold cursor-pointer">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition cursor-pointer">
+                        {% if user_app %}Update Application &rarr;{% else %}Submit Official Application &rarr;{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
