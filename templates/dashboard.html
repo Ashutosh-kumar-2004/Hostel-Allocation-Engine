@@ -1,0 +1,291 @@
+{% extends 'base.html' %}
+
+{% block title %}Operational Dashboard · Hostel Allocation Engine{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Header Hero Banner (Clean Light University SaaS) -->
+    <div class="rounded-2xl bg-white border border-slate-200/80 p-6 sm:p-8 shadow-sm relative overflow-hidden">
+        <div class="relative z-10 max-w-4xl">
+            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700 mb-3">
+                <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
+                <span>Active Cycle:</span>
+                <span class="text-slate-900 font-bold">{{ current_cycle }}</span>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">
+                Policy-Driven Hostel Allocation Engine
+            </h1>
+            <p class="mt-2 text-slate-600 text-sm sm:text-base leading-relaxed">
+                Automated constraint-respecting greedy heuristic allocation with mandatory human approval before publication. Enforcing a strict 3-role model, bed-level tracking, and full immutable auditability.
+            </p>
+
+            <!-- Quick Action Shortcuts (Dynamic based on Role) -->
+            <div class="mt-6 flex flex-wrap gap-2.5">
+                <a href="{% url 'inventory:explorer' %}" class="inline-flex items-center px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    Hostel Explorer
+                </a>
+                {% if is_warden or is_admin %}
+                <a href="{% url 'inventory:bed_map' %}" class="inline-flex items-center px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+                    </svg>
+                    Interactive Bed Map
+                </a>
+                <a href="{% url 'allocation:simulation' %}" class="inline-flex items-center px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white shadow-sm transition">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    What-if Simulation
+                </a>
+                {% endif %}
+                <a href="{% url 'inventory:room_changes' %}" class="inline-flex items-center px-3.5 py-2 rounded-xl text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-sm transition">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                    </svg>
+                    Room Change Requests
+                </a>
+                <a href="{% url 'architecture_docs' %}" class="inline-flex items-center px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 shadow-sm transition">
+                    <svg class="w-4 h-4 mr-1.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    View Flowcharts &amp; Architecture
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Metrics Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+            <div class="flex items-center justify-between text-slate-400">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Hostels &amp; Wardens</span>
+                <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+            </div>
+            <div class="mt-2 text-2xl font-bold text-slate-900">{{ stats.total_hostels }} <span class="text-xs font-normal text-slate-500">Hostels</span></div>
+            <div class="mt-1 text-xs text-indigo-600 font-medium">{{ stats.wardens_assigned }} Wardens 1-to-1 Assigned</div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+            <div class="flex items-center justify-between text-slate-400">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Available Beds</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            </div>
+            <div class="mt-2 text-2xl font-bold text-emerald-600">{{ stats.available_beds }} <span class="text-xs font-normal text-slate-500">/ {{ stats.total_beds }} total</span></div>
+            <div class="mt-1 text-xs text-slate-500">Occupied: {{ stats.occupied_beds }} | Reserved: {{ stats.reserved_beds }}</div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+            <div class="flex items-center justify-between text-slate-400">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Intake Applications</span>
+                <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            </div>
+            <div class="mt-2 text-2xl font-bold text-slate-900">{{ stats.pending_applications }}</div>
+            <div class="mt-1 text-xs text-amber-600 font-medium">Ranked Prefs + Consent Responses</div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+            <div class="flex items-center justify-between text-slate-400">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Room Change Queue</span>
+                <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+            </div>
+            <div class="mt-2 text-2xl font-bold text-purple-700">{{ stats.pending_room_changes }} <span class="text-xs font-normal text-slate-500">Pending</span></div>
+            <div class="mt-1 text-xs text-slate-500">Warden Review &amp; Reassignment</div>
+        </div>
+    </div>
+
+    <!-- 3 Roles Architecture Model Overview (9A & Updated Docs) -->
+    <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-lg font-bold text-slate-900">Three-Role Operational Governance (v2.0)</h2>
+                <p class="text-xs text-slate-500">Enforces structural isolation in SQLite. UI hiding is never used for security.</p>
+            </div>
+            <a href="{% url 'architecture_docs' %}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center space-x-1">
+                <span>See Flowcharts</span>
+                <span>&rarr;</span>
+            </a>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Student Role -->
+            <div class="rounded-xl border border-blue-100 bg-blue-50/50 p-5">
+                <div class="flex items-center space-x-2 text-blue-900 font-bold text-sm">
+                    <span class="w-6 h-6 rounded-md bg-blue-200 text-blue-800 flex items-center justify-center text-xs font-bold">S</span>
+                    <span>1. Student Role</span>
+                </div>
+                <ul class="mt-3 space-y-1.5 text-xs text-blue-950/80 leading-relaxed">
+                    <li class="flex items-start space-x-1.5">
+                        <span class="text-blue-500 mt-0.5">•</span>
+                        <span>Browse Hostel Explorer (Hostel &rarr; Block &rarr; Floor &rarr; Room &rarr; Bed).</span>
+                    </li>
+                    <li class="flex items-start space-x-1.5">
+                        <span class="text-blue-500 mt-0.5">•</span>
+                        <span>Submit ranked preferences and consented lifestyle survey.</span>
+                    </li>
+                    <li class="flex items-start space-x-1.5">
+                        <span class="text-blue-500 mt-0.5">•</span>
+                        <span>View transparent <em>"Why was I assigned this room?"</em> explanation.</span>
+                    </li>
+                    <li class="flex items-start space-x-1.5">
+                        <span class="text-blue-500 mt-0.5">•</span>
+                        <span>Submit Room Change Requests with mandatory reason.</span>
+                    </li>
+                </ul>
+                <div class="mt-4 pt-3 border-t border-blue-200/60">
+                    <a href="{% url 'inventory:explorer' %}" class="text-xs font-semibold text-blue-700 hover:underline">
+                        Open Student Explorer &rarr;
+                    </a>
+                </div>
+            </div>
+
+            <!-- Warden Role -->
+            <div class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-5">
+                <div class="flex items-center space-x-2 text-emerald-900 font-bold text-sm">
+                    <span class="w-6 h-6 rounded-md bg-emerald-200 text-emerald-800 flex items-center justify-center text-xs font-bold">W</span>
+                    <span>2. Warden Role</span>
+                </div>
+                <ul class="mt-3 space-y-1.5 text-xs text-emerald-950/80 leading-relaxed">
+                    <li class="flex items-start space-x-1.5">
+                        <span class="text-emerald-500 mt-0.5">•</span>
+                        <span>Strict 1-to-1 hostel ownership: administers only the assigned hostel.</span>
+                    </li>
+                    <li class="flex items-start space-x-1.5">
+                        <span class="text-emerald-500 mt-0.5">•</span>
+                        <span>Interactive visual Bed Map (Available, Occupied, Reserved, Maintenance).</span>
+                    </li>
+                    <li class="flex items-start space-x-1.5">
+                        <span class="text-emerald-500 mt-0.5">•</span>
+                        <span>Run isolated What-if Allocation Simulations.</span>
+                    </li>
+                    <li class="flex items-start space-x-1.5">
+                        <span class="text-emerald-500 mt-0.5">•</span>
+                        <span>Review draft allocations with mandatory override reasons &amp; approvals.</span>
+                    </li>
+                </ul>
+                <div class="mt-4 pt-3 border-t border-emerald-200/60 flex items-center justify-between">
+                    <a href="{% url 'inventory:bed_map' %}" class="text-xs font-semibold text-emerald-700 hover:underline">
+                        Open Bed Map &rarr;
+                    </a>
+                    <a href="{% url 'allocation:simulation' %}" class="text-xs font-semibold text-emerald-700 hover:underline">
+                        Simulations &rarr;
+                    </a>
+                </div>
+            </div>
+
+            <!-- Admin Role -->
+            <div class="rounded-xl border border-purple-100 bg-purple-50/50 p-5">
+                <div class="flex items-center space-x-2 text-purple-900 font-bold text-sm">
+                    <span class="w-6 h-6 rounded-md bg-purple-200 text-purple-800 flex items-center justify-center text-xs font-bold">A</span>
+                    <span>3. System Administrator</span>
+                </div>
+                <ul class="mt-3 space-y-1.5 text-xs text-purple-950/80 leading-relaxed">
+                    <li class="flex items-start space-x-1.5">
+                        <span class="text-purple-500 mt-0.5">•</span>
+                        <span>System-wide user administration and role governance.</span>
+                    </li>
+                    <li class="flex items-start space-x-1.5">
+                        <span class="text-purple-500 mt-0.5">•</span>
+                        <span>Assign and reassign Wardens to individual hostels.</span>
+                    </li>
+                    <li class="flex items-start space-x-1.5">
+                        <span class="text-purple-500 mt-0.5">•</span>
+                        <span>Cycle configuration and overall inventory administration.</span>
+                    </li>
+                    <li class="flex items-start space-x-1.5">
+                        <span class="text-purple-500 mt-0.5">•</span>
+                        <span>Review immutable audit logs for all privileged state changes.</span>
+                    </li>
+                </ul>
+                <div class="mt-4 pt-3 border-t border-purple-200/60">
+                    <a href="{% url 'inventory:warden_assignments' %}" class="text-xs font-semibold text-purple-700 hover:underline">
+                        Manage Warden Assignments &rarr;
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Complete 9 Modules Architecture Pipeline Grid -->
+    <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <h2 class="text-lg font-bold text-slate-900 mb-1">Modular Architecture Navigation</h2>
+        <p class="text-xs text-slate-500 mb-4">Each functional module is an isolated Django app with its own models and exposed service layer.</p>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs">
+            <a href="{% url 'inventory:list' %}" class="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition block group">
+                <div class="font-bold text-slate-900 group-hover:text-indigo-600 flex items-center justify-between">
+                    <span>M1 · Inventory</span>
+                    <span class="text-[10px] text-slate-400">Hostel &rarr; Bed</span>
+                </div>
+                <div class="text-slate-600 mt-1">Hostels, Blocks, Floors, Rooms (AC/Cooler), variable bed capacities.</div>
+            </a>
+
+            <a href="{% url 'applications:list' %}" class="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition block group">
+                <div class="font-bold text-slate-900 group-hover:text-indigo-600 flex items-center justify-between">
+                    <span>M2 · Applications</span>
+                    <span class="text-[10px] text-slate-400">Cycle Windows</span>
+                </div>
+                <div class="text-slate-600 mt-1">Application intake, student profiles, academic programmes, accessible flags.</div>
+            </a>
+
+            <a href="{% url 'eligibility:rules' %}" class="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition block group">
+                <div class="font-bold text-slate-900 group-hover:text-indigo-600 flex items-center justify-between">
+                    <span>M3 · Eligibility</span>
+                    <span class="text-[10px] text-slate-400">Rules Engine</span>
+                </div>
+                <div class="text-slate-600 mt-1">Distance, CGPA, disciplinary record rules with transparent pass/fail reasons.</div>
+            </a>
+
+            <a href="{% url 'preferences:list' %}" class="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition block group">
+                <div class="font-bold text-slate-900 group-hover:text-indigo-600 flex items-center justify-between">
+                    <span>M4 · Preferences</span>
+                    <span class="text-[10px] text-slate-400">Ranked Choices</span>
+                </div>
+                <div class="text-slate-600 mt-1">Ranked hostel preferences, room types (Single/Double/Dorm), roommate requests.</div>
+            </a>
+
+            <a href="{% url 'compatibility:info' %}" class="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition block group">
+                <div class="font-bold text-slate-900 group-hover:text-indigo-600 flex items-center justify-between">
+                    <span>M5 · Compatibility</span>
+                    <span class="text-[10px] text-slate-400">Consented ML/Data</span>
+                </div>
+                <div class="text-slate-600 mt-1">Lifestyle questionnaire (sleep, study, hygiene) pairwise matching scores.</div>
+            </a>
+
+            <a href="{% url 'allocation:draft_list' %}" class="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition block group">
+                <div class="font-bold text-slate-900 group-hover:text-indigo-600 flex items-center justify-between">
+                    <span>M6 · Allocation</span>
+                    <span class="text-[10px] text-slate-400">Pure Python</span>
+                </div>
+                <div class="text-slate-600 mt-1">Constraint heuristic engine: Bed capacity, gender, accessibility, seed tiebreaks.</div>
+            </a>
+
+            <a href="{% url 'review:dashboard' %}" class="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition block group">
+                <div class="font-bold text-slate-900 group-hover:text-indigo-600 flex items-center justify-between">
+                    <span>M7 · Warden Review</span>
+                    <span class="text-[10px] text-slate-400">Approval Gate</span>
+                </div>
+                <div class="text-slate-600 mt-1">Draft bed review, manual reallocation with mandatory reasons, warden sign-off.</div>
+            </a>
+
+            <a href="{% url 'waitlist:list' %}" class="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition block group">
+                <div class="font-bold text-slate-900 group-hover:text-indigo-600 flex items-center justify-between">
+                    <span>M8 · Waitlist</span>
+                    <span class="text-[10px] text-slate-400">Auto-Promotion</span>
+                </div>
+                <div class="text-slate-600 mt-1">Ordered priority queue with automatic offer dispatch upon bed cancellations.</div>
+            </a>
+
+            <a href="{% url 'publication:list' %}" class="p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition block group">
+                <div class="font-bold text-slate-900 group-hover:text-indigo-600 flex items-center justify-between">
+                    <span>M9 · Publication</span>
+                    <span class="text-[10px] text-slate-400">WeasyPrint PDF</span>
+                </div>
+                <div class="text-slate-600 mt-1">Gated by approval; immutable publication record; automated PDF letter generation.</div>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
