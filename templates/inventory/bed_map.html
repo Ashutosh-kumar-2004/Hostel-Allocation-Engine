@@ -1,0 +1,481 @@
+{% extends 'base.html' %}
+
+{% block title %}Interactive Bed Map · {% if is_admin %}Admin &amp; {% endif %}Warden Inventory Control{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{ 
+    selectedRoom: null, 
+    selectedBed: null, 
+    showAddRoomModal: false, 
+    showAddFloorModal: false, 
+    showAddBedModal: false, 
+    targetRoomId: '', 
+    targetRoomNumber: '', 
+    targetBlockId: '{{ blocks.first.id|default:'' }}' 
+}">
+    <!-- Header with Hostel Selector & Admin/Warden Controls -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div>
+            <div class="flex items-center space-x-2 text-xs font-semibold text-emerald-700 mb-1">
+                <span>Interactive Bed Map</span>
+                <span class="text-slate-300">•</span>
+                {% if is_admin %}
+                    <span class="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold">Admin Authority (All Hostels)</span>
+                {% elif is_warden %}
+                    <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">Assigned Warden (Hostel Scope)</span>
+                {% endif %}
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">{{ current_hostel.name }} ({{ current_hostel.code }})</h1>
+            <p class="text-xs text-slate-500 mt-1">
+                Hostel &rarr; Block &rarr; Floor &rarr; Room &rarr; Bed Granular Map. Real-time occupancy status and safe inventory management.
+            </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Hostel Switcher for Admin -->
+            {% if is_admin %}
+                <div class="flex items-center space-x-2">
+                    <label class="text-xs font-bold text-slate-500">Hostel:</label>
+                    <select onchange="window.location.href=this.value" class="text-xs font-semibold rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 shadow-2xs focus:ring-2 focus:ring-purple-500">
+                        {% for h in hostels %}
+                            <option value="{% url 'inventory:bed_map_hostel' h.id %}" {% if h.id == current_hostel.id %}selected{% endif %}>
+                                {{ h.code }} - {{ h.name }} ({{ h.get_gender_type_display }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            {% else %}
+                <div class="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                    <span class="text-slate-400 font-bold uppercase text-[10px]">Your Assigned Hostel:</span>
+                    <span class="font-bold text-slate-800 ml-1">{{ warden_hostel.code|default:current_hostel.code }}</span>
+                </div>
+            {% endif %}
+
+            <!-- Inventory Modification Buttons (Admin or Assigned Warden) -->
+            {% if can_manage_current_hostel %}
+                <button @click="showAddFloorModal = true" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition flex items-center space-x-1.5 shadow-2xs">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                    </svg>
+                    <span>+ Add Floor</span>
+                </button>
+                <button @click="showAddRoomModal = true" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-xs font-bold text-white transition flex items-center space-x-1.5 shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    <span>+ Add Room</span>
+                </button>
+            {% else %}
+                <span class="text-xs font-semibold px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200">
+                    View-Only Mode
+                </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Status Legend & Key Metrics -->
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+            <span class="w-3.5 h-3.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Available</div>
+                <div class="text-lg font-bold text-emerald-700">{{ stats.available }} beds</div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+            <span class="w-3.5 h-3.5 rounded-full bg-rose-500 flex-shrink-0"></span>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Occupied</div>
+                <div class="text-lg font-bold text-rose-700">{{ stats.occupied }} beds</div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+            <span class="w-3.5 h-3.5 rounded-full bg-amber-500 flex-shrink-0"></span>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Reserved</div>
+                <div class="text-lg font-bold text-amber-700">{{ stats.reserved }} beds</div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+            <span class="w-3.5 h-3.5 rounded-full bg-slate-400 flex-shrink-0"></span>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Maintenance</div>
+                <div class="text-lg font-bold text-slate-700">{{ stats.maintenance }} beds</div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs flex items-center space-x-3">
+            <span class="w-3.5 h-3.5 rounded-full bg-indigo-500 flex-shrink-0"></span>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Total Capacity</div>
+                <div class="text-lg font-bold text-slate-900">{{ stats.total_beds }} beds</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive Blocks & Rooms Grid -->
+    <div class="space-y-6">
+        {% for block in blocks %}
+            <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-5">
+                    <div class="flex items-center space-x-2">
+                        <span class="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {{ block.name }}
+                        </span>
+                        <span class="text-xs text-slate-500">Total Floors: {{ block.number_of_floors }}</span>
+                    </div>
+                    <span class="text-xs text-slate-400">Click a bed for inspection &amp; management</span>
+                </div>
+
+                <!-- Rooms Grid in Block -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {% for room in block.rooms.all %}
+                        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-indigo-300 transition shadow-2xs flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="font-bold text-slate-900 text-sm">Room {{ room.room_number }}</span>
+                                        <span class="text-[10px] text-slate-400">Fl. {{ room.floor_number }}</span>
+                                    </div>
+                                    <div class="flex items-center space-x-1.5">
+                                        {% if room.cooling_type == "AC" %}
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">AC</span>
+                                        {% elif room.cooling_type == "COOLER" %}
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800">Cooler</span>
+                                        {% else %}
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-200 text-slate-700">Fan</span>
+                                        {% endif %}
+
+                                        <!-- Room Management Actions (Admin or Assigned Warden) -->
+                                        {% if can_manage_current_hostel %}
+                                            <!-- Add Bed to this Room -->
+                                            <button @click="showAddBedModal = true; targetRoomId = '{{ room.id }}'; targetRoomNumber = '{{ room.room_number }}'" 
+                                                    title="Add Bed to Room {{ room.room_number }}" 
+                                                    class="p-1 rounded-md text-emerald-600 hover:bg-emerald-100 transition">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                                </svg>
+                                            </button>
+
+                                            <!-- Delete Room Button -->
+                                            <form method="POST" action="{% url 'inventory:delete_room' room.id %}" onsubmit="return confirm('Are you sure you want to delete Room {{ room.room_number }} and all its vacant beds?');" class="inline">
+                                                {% csrf_token %}
+                                                <button type="submit" 
+                                                        {% if room.has_active_allocations %}disabled title="Cannot delete: Room has occupied or reserved beds"{% else %}title="Delete vacant Room {{ room.room_number }}"{% endif %} 
+                                                        class="p-1 rounded-md {% if room.has_active_allocations %}text-slate-300 cursor-not-allowed{% else %}text-rose-500 hover:bg-rose-100 hover:text-rose-700{% endif %} transition">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                                    </svg>
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="mt-1 text-xs text-slate-500">
+                                    <span>{{ room.get_room_type_display }}</span> · <span>{{ room.beds.count }} beds</span>
+                                    {% if room.is_accessible %}
+                                        · <span class="text-indigo-600 font-medium">Accessible</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Beds Visualization Inside Room -->
+                            <div class="mt-3 pt-3 border-t border-slate-200">
+                                <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                                    <span>Beds Layout:</span>
+                                    {% if room.has_active_allocations %}
+                                        <span class="text-rose-600 font-bold lowercase text-[10px]">● active resident</span>
+                                    {% else %}
+                                        <span class="text-emerald-600 font-bold lowercase text-[10px]">● fully vacant</span>
+                                    {% endif %}
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                                    {% for bed in room.beds.all %}
+                                        <div @click="selectedBed = { id: '{{ bed.id }}', identifier: '{{ bed.bed_identifier }}', room: '{{ room.room_number }}', roomId: '{{ room.id }}', status: '{{ bed.status }}', occupant: '{{ bed.occupant_name|default:'' }}', cooling: '{{ room.cooling_type }}' }"
+                                             class="p-2 rounded-lg border text-center cursor-pointer transition shadow-2xs
+                                             {% if bed.status == 'AVAILABLE' %}
+                                                bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100
+                                             {% elif bed.status == 'OCCUPIED' %}
+                                                bg-rose-50 border-rose-300 text-rose-800 hover:bg-rose-100
+                                             {% elif bed.status == 'RESERVED' %}
+                                                bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100
+                                             {% else %}
+                                                bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200
+                                             {% endif %}">
+                                            <div class="font-bold text-xs">Bed {{ bed.bed_identifier }}</div>
+                                            <div class="text-[9px] uppercase font-semibold mt-0.5 truncate">{{ bed.get_status_display }}</div>
+                                        </div>
+                                    {% empty %}
+                                        <div class="col-span-3 text-center py-2 text-slate-400 text-xs italic">
+                                            No beds in room.
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="col-span-full p-8 text-center bg-slate-50 border border-slate-200 rounded-xl text-slate-400 text-xs">
+                            No rooms configured in this block. {% if can_manage_current_hostel %}Use "+ Add Room" to create one.{% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-span-full p-12 text-center bg-white border border-slate-200 rounded-2xl text-slate-400">
+                No blocks configured for this hostel.
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Bed Inspection Drawer / Modal (Alpine.js) -->
+    <div x-show="selectedBed" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full p-6 space-y-4" @click.away="selectedBed = null">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">Bed Details &amp; Control</h3>
+                    <p class="text-xs text-slate-500">Room <span x-text="selectedBed?.room"></span> · Bed <span x-text="selectedBed?.identifier"></span></p>
+                </div>
+                <button @click="selectedBed = null" class="text-slate-400 hover:text-slate-600 p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-2 text-xs text-slate-700">
+                <div class="flex justify-between py-1 border-b border-slate-100">
+                    <span class="text-slate-400">Current Status:</span>
+                    <span class="font-bold uppercase text-indigo-700" x-text="selectedBed?.status"></span>
+                </div>
+                <div class="flex justify-between py-1 border-b border-slate-100">
+                    <span class="text-slate-400">Cooling Type:</span>
+                    <span class="font-medium text-slate-900" x-text="selectedBed?.cooling"></span>
+                </div>
+                <div class="flex justify-between py-1 border-b border-slate-100">
+                    <span class="text-slate-400">Current Occupant:</span>
+                    <span class="font-medium text-slate-900" x-text="selectedBed?.occupant || 'None (Vacant Bed)'"></span>
+                </div>
+            </div>
+
+            <!-- Management actions on this bed -->
+            <div class="pt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100">
+                {% if can_manage_current_hostel %}
+                    <template x-if="selectedBed?.status === 'AVAILABLE'">
+                        <form method="POST" :action="'/inventory/beds/' + selectedBed?.id + '/delete/'" onsubmit="return confirm('Are you sure you want to permanently delete this vacant bed?');">
+                            {% csrf_token %}
+                            <button type="submit" class="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 text-xs font-semibold flex items-center space-x-1 transition">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                                <span>Delete Vacant Bed</span>
+                            </button>
+                        </form>
+                    </template>
+                    <template x-if="selectedBed?.status !== 'AVAILABLE'">
+                        <span class="text-[11px] text-slate-400 italic">Occupied/Reserved: deletion locked</span>
+                    </template>
+                {% endif %}
+
+                <div class="flex items-center space-x-2 ml-auto">
+                    <a href="{% url 'inventory:room_changes' %}" class="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 text-xs font-semibold">
+                        Room Change &rarr;
+                    </a>
+                    <button @click="selectedBed = null" class="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-semibold">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 1: Add Floor Modal -->
+    {% if can_manage_current_hostel %}
+    <div x-show="showAddFloorModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4" @click.away="showAddFloorModal = false">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                        Fl
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-base">Add New Floor</h3>
+                        <p class="text-xs text-slate-500">{{ current_hostel.name }}</p>
+                    </div>
+                </div>
+                <button @click="showAddFloorModal = false" class="text-slate-400 hover:text-slate-600 p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form method="POST" action="{% url 'inventory:create_floor' %}" class="space-y-4 text-xs">
+                {% csrf_token %}
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Select Block *</label>
+                    <select name="block_id" required class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        {% for b in blocks %}
+                            <option value="{{ b.id }}">{{ b.name }} (Current floors: {{ b.number_of_floors }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Floor Number *</label>
+                        <input type="number" name="floor_number" min="0" max="30" value="1" required class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <span class="text-[10px] text-slate-400">0 for Ground Floor</span>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Floor Name (Optional)</label>
+                        <input type="text" name="name" placeholder="e.g. First Floor" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" @click="showAddFloorModal = false" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm transition">
+                        Add Floor
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Add Room Modal -->
+    <div x-show="showAddRoomModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4" @click.away="showAddRoomModal = false">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                        Rm
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-base">Add New Room</h3>
+                        <p class="text-xs text-slate-500">{{ current_hostel.name }}</p>
+                    </div>
+                </div>
+                <button @click="showAddRoomModal = false" class="text-slate-400 hover:text-slate-600 p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form method="POST" action="{% url 'inventory:create_room' %}" class="space-y-4 text-xs">
+                {% csrf_token %}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Select Block *</label>
+                        <select name="block_id" required class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            {% for b in blocks %}
+                                <option value="{{ b.id }}">{{ b.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Floor Number *</label>
+                        <input type="number" name="floor_number" min="0" max="30" value="0" required class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Room Number *</label>
+                        <input type="text" name="room_number" required placeholder="e.g. 101 or A-102" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 font-mono uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Bed Capacity *</label>
+                        <input type="number" name="capacity" min="1" max="8" value="2" required class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <span class="text-[10px] text-slate-400">Beds A, B... auto-provisioned</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Room Type</label>
+                        <select name="room_type" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="DOUBLE" selected>Double Sharing</option>
+                            <option value="SINGLE">Single Room</option>
+                            <option value="TRIPLE">Triple Sharing</option>
+                            <option value="QUAD">Quad Sharing</option>
+                            <option value="DORM">Dormitory</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Cooling Type</label>
+                        <select name="cooling_type" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="COOLER" selected>Air Cooler</option>
+                            <option value="AC">Air Conditioned (AC)</option>
+                            <option value="FAN">Ceiling Fan</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2 pt-1">
+                    <input type="checkbox" name="is_accessible" id="is_accessible" value="true" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                    <label for="is_accessible" class="text-xs text-slate-700 font-medium">Physically Accessible / Disability Friendly Room</label>
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" @click="showAddRoomModal = false" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold shadow-sm transition">
+                        Create Room &amp; Beds
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 3: Add Bed to Room Modal -->
+    <div x-show="showAddBedModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-sm w-full p-6 space-y-4" @click.away="showAddBedModal = false">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center font-bold">
+                        Bd
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-base">Add Bed</h3>
+                        <p class="text-xs text-slate-500">Room <span x-text="targetRoomNumber"></span></p>
+                    </div>
+                </div>
+                <button @click="showAddBedModal = false" class="text-slate-400 hover:text-slate-600 p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form method="POST" action="{% url 'inventory:create_bed' %}" class="space-y-4 text-xs">
+                {% csrf_token %}
+                <input type="hidden" name="room_id" :value="targetRoomId">
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Bed Identifier (Optional)</label>
+                    <input type="text" name="bed_identifier" placeholder="e.g. C or D (Leave blank for auto)" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 font-mono uppercase focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    <span class="text-[10px] text-slate-400">If left blank, the next available letter will be assigned.</span>
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" @click="showAddBedModal = false" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold shadow-sm transition">
+                        Add Bed
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

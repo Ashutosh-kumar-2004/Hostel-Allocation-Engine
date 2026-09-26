@@ -1,0 +1,631 @@
+{% extends 'base.html' %}
+
+{% block title %}Accommodation &amp; Hostel Explorer · University Residences{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="hostelExplorerApp()">
+
+    <!-- Header Hero Banner -->
+    <div class="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <div class="flex items-center space-x-2 text-xs font-semibold text-indigo-700 mb-1">
+                    <span>Residential Inventory Directory</span>
+                    <span class="text-slate-300">•</span>
+                    <span>Student Explorer</span>
+                    {% if student_gender %}
+                        <span class="text-slate-300">•</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {% if student_gender == 'M' %}Male Resident Residences{% elif student_gender == 'W' or student_gender == 'F' %}Female Resident Residences{% else %}{{ student_gender }}{% endif %}
+                        </span>
+                    {% endif %}
+                </div>
+                <h1 class="text-2xl font-bold text-slate-900 tracking-tight">University Accommodation Explorer</h1>
+                <p class="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
+                    Explore all residential hostels, available room configurations, cooling options, attached amenities, and live seat occupancy across the university campus for your knowledge and preferences.
+                </p>
+            </div>
+
+            <!-- Quick Action Links -->
+            <div class="flex items-center space-x-3">
+                <a href="{% url 'preferences:list' %}" class="inline-flex items-center px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    </svg>
+                    My Ranked Preferences &rarr;
+                </a>
+            </div>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-slate-400 font-bold uppercase text-[10px] tracking-wider mr-1">Filter by Cooling:</span>
+                <button type="button" 
+                        @click="coolingFilter = 'ALL'"
+                        :class="coolingFilter === 'ALL' ? 'bg-indigo-600 text-white shadow-xs font-bold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                        class="px-3 py-1.5 rounded-lg text-xs transition cursor-pointer">
+                    All Cooling Types
+                </button>
+                <button type="button" 
+                        @click="coolingFilter = 'COOLER'"
+                        :class="coolingFilter === 'COOLER' ? 'bg-indigo-600 text-white shadow-xs font-bold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                        class="px-3 py-1.5 rounded-lg text-xs transition cursor-pointer">
+                    Air Cooled
+                </button>
+                <button type="button" 
+                        @click="coolingFilter = 'AC'"
+                        :class="coolingFilter === 'AC' ? 'bg-indigo-600 text-white shadow-xs font-bold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                        class="px-3 py-1.5 rounded-lg text-xs transition cursor-pointer">
+                    Air Conditioned (AC)
+                </button>
+            </div>
+
+            <!-- Search Filter -->
+            <div class="w-full sm:w-64">
+                <div class="relative">
+                    <input type="text" 
+                           x-model="searchQuery" 
+                           placeholder="Search room or hostel..."
+                           class="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white text-slate-700">
+                    <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Explorer Layout: Left Hostels List | Right Room & Bed Accommodation Details -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- Column 1: Hostels Overview Selector (4 cols) - Sticky Sidebar -->
+        <div class="lg:col-span-4 space-y-4 lg:sticky lg:top-6 lg:self-start">
+            <div class="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider px-1">
+                <span>Campus Hostels (<span x-text="treeData.length"></span>)</span>
+                <span class="text-[11px] font-normal text-slate-400">Select to inspect</span>
+            </div>
+
+            <div class="max-h-[calc(100vh-140px)] overflow-y-auto pr-1.5 scrollbar-thin space-y-3">
+                <template x-for="h in treeData" :key="h.id">
+                    <div @click="selectHostel(h)"
+                         :class="selectedHostelId === h.id 
+                            ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/30' 
+                            : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-xs'"
+                         class="border rounded-2xl p-4 transition cursor-pointer flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <span class="px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold" x-text="h.code"></span>
+                                <span class="text-[11px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600" x-text="h.gender_display"></span>
+                            </div>
+                            <h3 class="text-sm font-bold text-slate-900 mt-2.5" x-text="h.name"></h3>
+                            <p class="text-[11px] text-slate-500 mt-1 line-clamp-2" x-text="h.description || 'Modern campus residential facility equipped with high-speed network and study rooms.'"></p>
+                        </div>
+
+                        <!-- Stats Row -->
+                        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                            <span class="text-slate-500">
+                                Total Rooms: <strong class="text-slate-800" x-text="h.rooms.length"></strong>
+                            </span>
+                            <span class="inline-flex items-center space-x-1 font-semibold text-emerald-600">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                <span x-text="h.available_beds + ' / ' + h.total_beds + ' Vacant'"></span>
+                            </span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Column 2: Rooms & Seat Accommodation Inspection Canvas (8 cols) -->
+        <div class="lg:col-span-8 space-y-6">
+
+            <!-- Selected Hostel Overview & View Switcher Card -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h2 class="text-lg font-bold text-slate-900" x-text="selectedHostel ? selectedHostel.name : 'Select a Hostel'"></h2>
+                            <span x-show="selectedHostel" class="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[11px] font-bold" x-text="selectedHostel ? selectedHostel.code : ''"></span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1">
+                            Live synchronization between Room Directory and Interactive Floor Bed Map from verified inventory data.
+                        </p>
+                    </div>
+
+                    <!-- View Switcher Tabs -->
+                    <div class="inline-flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                        <button type="button" 
+                                @click="activeTab = 'bed_map'"
+                                :class="activeTab === 'bed_map' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                                class="inline-flex items-center px-3 py-1.5 rounded-lg transition cursor-pointer">
+                            <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+                            </svg>
+                            Interactive Bed Map View
+                        </button>
+                        <button type="button" 
+                                @click="activeTab = 'directory'"
+                                :class="activeTab === 'directory' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                                class="inline-flex items-center px-3 py-1.5 rounded-lg transition cursor-pointer">
+                            <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                            </svg>
+                            Room Directory Cards
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Unified 5-Status Metrics (Same as Interactive Bed Map View) -->
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mt-4">
+                    <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-center space-x-2.5">
+                        <span class="w-3 h-3 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                        <div>
+                            <div class="text-[9px] uppercase font-bold text-slate-400">Available</div>
+                            <div class="text-sm font-bold text-emerald-700" x-text="(selectedHostel ? selectedHostel.available_beds : 0) + ' beds'"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-center space-x-2.5">
+                        <span class="w-3 h-3 rounded-full bg-rose-500 flex-shrink-0"></span>
+                        <div>
+                            <div class="text-[9px] uppercase font-bold text-slate-400">Occupied</div>
+                            <div class="text-sm font-bold text-rose-700" x-text="(selectedHostel ? selectedHostel.occupied_beds : 0) + ' beds'"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-center space-x-2.5">
+                        <span class="w-3 h-3 rounded-full bg-amber-500 flex-shrink-0"></span>
+                        <div>
+                            <div class="text-[9px] uppercase font-bold text-slate-400">Reserved</div>
+                            <div class="text-sm font-bold text-amber-700" x-text="(selectedHostel ? selectedHostel.reserved_beds : 0) + ' beds'"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-center space-x-2.5">
+                        <span class="w-3 h-3 rounded-full bg-slate-400 flex-shrink-0"></span>
+                        <div>
+                            <div class="text-[9px] uppercase font-bold text-slate-400">Maintenance</div>
+                            <div class="text-sm font-bold text-slate-700" x-text="(selectedHostel ? selectedHostel.maintenance_beds : 0) + ' beds'"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-center space-x-2.5">
+                        <span class="w-3 h-3 rounded-full bg-indigo-500 flex-shrink-0"></span>
+                        <div>
+                            <div class="text-[9px] uppercase font-bold text-slate-400">Total Capacity</div>
+                            <div class="text-sm font-bold text-slate-900" x-text="(selectedHostel ? selectedHostel.total_beds : 0) + ' beds'"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW MODE 1: INTERACTIVE BED MAP (Hostel -> Block -> Floor -> Room -> Bed) -->
+                <div x-show="activeTab === 'bed_map'" class="mt-6 space-y-6">
+                    <!-- Global Floor Accordion Toolbar (Expand All / Collapse All) -->
+                    <div class="flex items-center justify-between bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 text-xs">
+                        <div class="flex items-center space-x-2 text-slate-600 font-medium">
+                            <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                            </svg>
+                            <span>Floor-Level Dropdown Navigator</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button type="button" 
+                                    @click="expandAllFloors()"
+                                    class="px-2.5 py-1 text-[11px] font-semibold text-indigo-700 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 transition cursor-pointer">
+                                Expand All
+                            </button>
+                            <button type="button" 
+                                    @click="collapseAllFloors()"
+                                    class="px-2.5 py-1 text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition cursor-pointer">
+                                Collapse All
+                            </button>
+                        </div>
+                    </div>
+
+                    <template x-for="block in (selectedHostel ? selectedHostel.blocks : [])" :key="block.id">
+                        <div class="border border-slate-200 rounded-2xl p-5 bg-slate-50/50">
+                            <!-- Block Header -->
+                            <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+                                <div class="flex items-center space-x-2">
+                                    <span class="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200" x-text="block.name"></span>
+                                    <span class="text-xs text-slate-500" x-text="'Floors: ' + block.number_of_floors"></span>
+                                </div>
+                                <span class="text-[11px] text-slate-400">Click any floor header to drop/collapse rooms</span>
+                            </div>
+
+                            <!-- Floor Accordion Dropdown Groups within Block -->
+                            <div class="space-y-3">
+                                <template x-for="floor in block.floors" :key="floor.id">
+                                    <div class="bg-white border rounded-xl shadow-2xs overflow-hidden transition"
+                                         :class="isFloorOpen(floor.id) ? 'border-slate-300' : 'border-slate-200 hover:border-slate-300'">
+                                        <!-- Floor Accordion Header / Dropdown Button -->
+                                        <button type="button"
+                                                @click="toggleFloor(floor.id)"
+                                                class="w-full flex items-center justify-between text-xs font-bold text-slate-700 p-3.5 bg-slate-50/70 hover:bg-slate-100/80 transition cursor-pointer text-left">
+                                            <div class="flex items-center space-x-2">
+                                                <div class="w-6 h-6 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-[11px]">
+                                                    <span x-text="floor.floor_number"></span>
+                                                </div>
+                                                <span class="font-bold text-slate-900" x-text="floor.name"></span>
+                                                <span class="text-[10px] text-slate-400 font-normal ml-1" x-text="'(' + floor.rooms.length + ' Rooms)'"></span>
+                                            </div>
+
+                                            <div class="flex items-center space-x-3">
+                                                <!-- Quick availability chip for the floor -->
+                                                <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                                                    <span x-text="getFloorVacantCount(floor) + ' Vacant Beds'"></span>
+                                                </span>
+                                                <!-- Dropdown chevron indicator -->
+                                                <svg class="w-4 h-4 text-slate-400 transition-transform duration-200" 
+                                                     :class="isFloorOpen(floor.id) ? 'rotate-180 text-indigo-600' : ''"
+                                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                                </svg>
+                                            </div>
+                                        </button>
+
+                                        <!-- Floor Room Grid (Collapsible Dropdown Body) -->
+                                        <div x-show="isFloorOpen(floor.id)" 
+                                             x-collapse
+                                             class="p-4 border-t border-slate-100 bg-white">
+                                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                <template x-for="room in floor.rooms" :key="room.id">
+                                                    <div @click="selectedRoom = room"
+                                                         :class="selectedRoom && selectedRoom.id === room.id ? 'border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/10' : 'border-slate-200 bg-slate-50/70 hover:bg-white hover:border-indigo-300'"
+                                                         class="p-3 rounded-xl border transition cursor-pointer shadow-2xs flex flex-col justify-between">
+                                                    <div>
+                                                        <div class="flex items-center justify-between gap-1 mb-1">
+                                                            <div class="flex items-center space-x-1.5">
+                                                                <span class="font-bold text-slate-900 text-xs" x-text="'Room ' + room.room_number"></span>
+                                                                <span class="text-[10px] text-slate-400" x-text="'Fl. ' + room.floor_number"></span>
+                                                            </div>
+                                                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                                                                  :class="room.cooling_type === 'AC' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-800'"
+                                                                  x-text="room.cooling_display"></span>
+                                                        </div>
+
+                                                        <div class="text-[10px] text-slate-500 flex items-center justify-between">
+                                                            <span x-text="room.room_type_display"></span>
+                                                            <span x-text="room.capacity + ' beds'"></span>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Beds Visualization inside Room (matching bed_map.html exactly) -->
+                                                    <div class="mt-2.5 pt-2 border-t border-slate-200/80">
+                                                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                                                            <template x-for="bed in room.beds" :key="bed.id">
+                                                                <div @click.stop="openBedInspection(bed, room)"
+                                                                     class="p-1.5 rounded-lg border text-center cursor-pointer transition shadow-2xs"
+                                                                     :class="{
+                                                                        'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100': bed.status === 'AVAILABLE',
+                                                                        'bg-rose-50 border-rose-300 text-rose-800 hover:bg-rose-100': bed.status === 'OCCUPIED',
+                                                                        'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100': bed.status === 'RESERVED',
+                                                                        'bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200': bed.status === 'MAINTENANCE'
+                                                                     }">
+                                                                    <div class="font-bold text-[11px]" x-text="'Bed ' + bed.identifier"></div>
+                                                                    <div class="text-[8px] uppercase font-semibold truncate" x-text="bed.status_display"></div>
+                                                                </div>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- VIEW MODE 2: ROOM DIRECTORY CARDS (With Search & Cooling Filter) -->
+                <div x-show="activeTab === 'directory'" class="mt-6">
+                    <div class="flex items-center justify-between text-xs font-semibold text-slate-500 mb-3">
+                        <span>Filtered Rooms (<span x-text="filteredRooms.length"></span>)</span>
+                        <span class="text-[11px] text-slate-400 font-normal">Matching active filters</span>
+                    </div>
+
+                    <div class="max-h-[500px] overflow-y-auto pr-1.5 scrollbar-thin">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            <template x-for="r in filteredRooms" :key="r.id">
+                                <div @click="selectedRoom = r"
+                                     :class="[
+                                        isRoomFull(r) 
+                                            ? (selectedRoom && selectedRoom.id === r.id ? 'border-rose-600 ring-2 ring-rose-500/20 bg-rose-50/60' : 'border-rose-300 bg-rose-50/40 hover:border-rose-400')
+                                            : (selectedRoom && selectedRoom.id === r.id ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/20' : 'border-slate-200 bg-white hover:border-indigo-300')
+                                     ]"
+                                     class="border rounded-xl p-4 transition cursor-pointer flex flex-col justify-between shadow-xs">
+                                    <div>
+                                        <div class="flex items-center justify-between gap-2 mb-2">
+                                            <div class="flex items-center space-x-1.5 truncate">
+                                                <span class="text-sm font-bold truncate" :class="isRoomFull(r) ? 'text-rose-900' : 'text-slate-900'" x-text="'Room ' + r.room_number"></span>
+                                                <span class="text-[10px] text-slate-400" x-text="'(' + r.block_name + ')'"></span>
+                                            </div>
+                                            <span class="text-[10px] font-bold px-2 py-0.5 rounded flex-shrink-0"
+                                                  :class="isRoomFull(r) 
+                                                    ? 'bg-rose-100 text-rose-800 border border-rose-200' 
+                                                    : (r.cooling_type === 'AC' ? 'bg-sky-100 text-sky-800 border border-sky-200' : 'bg-amber-100 text-amber-800 border border-amber-200')"
+                                                  x-text="r.cooling_display"></span>
+                                        </div>
+
+                                        <div class="space-y-1 text-[11px]" :class="isRoomFull(r) ? 'text-rose-700/80' : 'text-slate-600'">
+                                            <div class="flex items-center justify-between">
+                                                <span :class="isRoomFull(r) ? 'text-rose-400' : 'text-slate-400'">Layout:</span>
+                                                <span class="font-medium" :class="isRoomFull(r) ? 'text-rose-900' : 'text-slate-800'" x-text="r.room_type_display"></span>
+                                            </div>
+                                            <div class="flex items-center justify-between">
+                                                <span :class="isRoomFull(r) ? 'text-rose-400' : 'text-slate-400'">Floor:</span>
+                                                <span class="font-medium" :class="isRoomFull(r) ? 'text-rose-900' : 'text-slate-800'" x-text="'Floor ' + r.floor_number"></span>
+                                            </div>
+                                            <div class="flex items-center justify-between">
+                                                <span :class="isRoomFull(r) ? 'text-rose-400' : 'text-slate-400'">Washroom:</span>
+                                                <span class="font-medium" :class="r.attached_washroom ? (isRoomFull(r) ? 'text-rose-800' : 'text-emerald-700') : 'text-slate-500'" x-text="r.attached_washroom ? 'Attached' : 'Common'"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Seat Breakdown / Indicator Badges -->
+                                    <div class="mt-4 pt-3 border-t" :class="isRoomFull(r) ? 'border-rose-200' : 'border-slate-100'">
+                                        <span class="text-[10px] uppercase font-bold block mb-1.5" :class="isRoomFull(r) ? 'text-rose-500' : 'text-slate-400'">Seats / Beds:</span>
+                                        <div class="flex flex-wrap gap-1.5">
+                                            <template x-for="b in r.beds" :key="b.id">
+                                                <button type="button"
+                                                        @click.stop="openBedInspection(b, r)"
+                                                        class="px-2 py-1 rounded text-[11px] font-mono font-bold flex items-center space-x-1 cursor-pointer transition"
+                                                        :class="{
+                                                            'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100': b.status === 'AVAILABLE',
+                                                            'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100': b.status === 'OCCUPIED',
+                                                            'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100': b.status === 'RESERVED',
+                                                            'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200': b.status === 'MAINTENANCE'
+                                                        }"
+                                                        :title="b.label + ' (' + b.status_display + ')'">
+                                                    <span x-text="b.identifier"></span>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template x-if="filteredRooms.length === 0">
+                                <div class="col-span-full py-12 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                    No rooms match the current search or cooling filter.
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Selected Room & Accommodation Information Card -->
+            <div x-show="selectedRoom" class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div class="flex items-center space-x-2">
+                        <h3 class="text-sm font-bold text-slate-900">
+                            Accommodation Breakdown · Room <span x-text="selectedRoom ? selectedRoom.room_number : ''"></span>
+                        </h3>
+                        <span class="text-xs text-indigo-600 font-semibold" x-text="selectedRoom ? ('(' + selectedRoom.block_name + ' · Floor ' + selectedRoom.floor_number + ')') : ''"></span>
+                    </div>
+                    <span class="text-xs text-slate-500" x-text="selectedHostel ? selectedHostel.name : ''"></span>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="text-[10px] uppercase font-bold text-slate-400 block">Room Specification</span>
+                        <span class="font-bold text-slate-900 mt-1 block" x-text="selectedRoom ? selectedRoom.room_type_display : ''"></span>
+                        <span class="text-[11px] text-slate-500" x-text="selectedRoom ? selectedRoom.cooling_display : ''"></span>
+                    </div>
+
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="text-[10px] uppercase font-bold text-slate-400 block">In-Room Amenities</span>
+                        <span class="text-[11px] text-slate-700 mt-1 block font-medium" x-text="selectedRoom ? (selectedRoom.facilities || 'Study Desks, Wardrobe, High-Speed Wi-Fi, Ergonomic Chairs') : ''"></span>
+                    </div>
+
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="text-[10px] uppercase font-bold text-slate-400 block">Washroom Provision</span>
+                        <span class="font-bold mt-1 block" :class="selectedRoom && selectedRoom.attached_washroom ? 'text-emerald-700' : 'text-slate-700'" x-text="selectedRoom && selectedRoom.attached_washroom ? 'Private Attached Washroom' : 'Common Modern Sanitary Block'"></span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Bed Inspection Modal (Data-driven live details matching bed_map.html) -->
+    <div x-show="selectedBed" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full p-6 space-y-4" @click.away="selectedBed = null">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">Bed Inspection</h3>
+                    <p class="text-xs text-slate-500">Room <span x-text="selectedBed?.room"></span> · Bed <span x-text="selectedBed?.identifier"></span></p>
+                </div>
+                <button @click="selectedBed = null" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-2.5 text-xs text-slate-700">
+                <div class="flex justify-between py-1.5 border-b border-slate-100">
+                    <span class="text-slate-400">Hostel &amp; Block:</span>
+                    <span class="font-bold text-slate-800" x-text="selectedHostel ? (selectedHostel.code + ' · ' + (selectedBed?.block || 'Main')) : ''"></span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-100">
+                    <span class="text-slate-400">Current Status:</span>
+                    <span class="font-bold uppercase"
+                          :class="{
+                             'text-emerald-700': selectedBed?.status === 'AVAILABLE',
+                             'text-rose-700': selectedBed?.status === 'OCCUPIED',
+                             'text-amber-700': selectedBed?.status === 'RESERVED',
+                             'text-slate-700': selectedBed?.status === 'MAINTENANCE'
+                          }"
+                          x-text="selectedBed?.status_display || selectedBed?.status"></span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-100">
+                    <span class="text-slate-400">Cooling Specification:</span>
+                    <span class="font-medium text-slate-900" x-text="selectedBed?.cooling"></span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-100">
+                    <span class="text-slate-400">Current Occupant:</span>
+                    <span class="font-medium text-slate-900" x-text="selectedBed?.occupant || 'None (Vacant Bed)'"></span>
+                </div>
+            </div>
+
+            <div class="pt-2 flex justify-end space-x-2">
+                <a href="{% url 'preferences:list' %}" class="px-3.5 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 text-xs font-semibold">
+                    Set Preferences &rarr;
+                </a>
+                <button @click="selectedBed = null" class="px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-semibold cursor-pointer">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{{ tree_data_json|json_script:"hostel-tree-data" }}
+
+<!-- Alpine.js Explorer Logic -->
+<script>
+document.addEventListener('alpine:init', function () {
+    const rawData = document.getElementById('hostel-tree-data');
+    let parsedTree = [];
+    if (rawData && rawData.textContent) {
+        try {
+            parsedTree = typeof rawData.textContent === 'string' ? JSON.parse(rawData.textContent) : rawData.textContent;
+            if (typeof parsedTree === 'string') {
+                parsedTree = JSON.parse(parsedTree);
+            }
+        } catch (e) {
+            console.error('Failed to parse tree data', e);
+        }
+    }
+
+    Alpine.data('hostelExplorerApp', function () {
+        return {
+            treeData: parsedTree,
+            selectedHostelId: '',
+            selectedRoom: null,
+            selectedBed: null,
+            activeTab: 'bed_map', // Default to 'bed_map' or 'directory'
+            coolingFilter: 'ALL',
+            searchQuery: '',
+
+            openFloors: {}, // Tracks open state per floor id
+
+            init() {
+                if (this.treeData && this.treeData.length > 0) {
+                    this.selectHostel(this.treeData[0]);
+                }
+            },
+
+            get selectedHostel() {
+                return this.treeData.find(h => h.id === this.selectedHostelId) || null;
+            },
+
+            get filteredRooms() {
+                const h = this.selectedHostel;
+                if (!h || !h.rooms) return [];
+                
+                return h.rooms.filter(r => {
+                    // Cooling filter
+                    if (this.coolingFilter !== 'ALL' && r.cooling_type !== this.coolingFilter) {
+                        return false;
+                    }
+                    // Search query
+                    if (this.searchQuery.trim()) {
+                        const q = this.searchQuery.toLowerCase();
+                        const matchNum = r.room_number.toLowerCase().includes(q);
+                        const matchType = (r.room_type_display || '').toLowerCase().includes(q);
+                        const matchCooling = (r.cooling_display || '').toLowerCase().includes(q);
+                        const matchBlock = (r.block_name || '').toLowerCase().includes(q);
+                        return matchNum || matchType || matchCooling || matchBlock;
+                    }
+                    return true;
+                });
+            },
+
+            selectHostel(h) {
+                this.selectedHostelId = h.id;
+                if (h.rooms && h.rooms.length > 0) {
+                    this.selectedRoom = h.rooms[0];
+                } else {
+                    this.selectedRoom = null;
+                }
+                // By default, open the first floor of each block or ground floor, keeping list tidy
+                const newOpen = {};
+                if (h.blocks) {
+                    h.blocks.forEach(b => {
+                        if (b.floors && b.floors.length > 0) {
+                            newOpen[b.floors[0].id] = true;
+                        }
+                    });
+                }
+                this.openFloors = newOpen;
+            },
+
+            isFloorOpen(floorId) {
+                return !!this.openFloors[floorId];
+            },
+
+            toggleFloor(floorId) {
+                this.openFloors[floorId] = !this.openFloors[floorId];
+            },
+
+            expandAllFloors() {
+                const h = this.selectedHostel;
+                if (!h || !h.blocks) return;
+                const newOpen = {};
+                h.blocks.forEach(b => {
+                    if (b.floors) {
+                        b.floors.forEach(f => {
+                            newOpen[f.id] = true;
+                        });
+                    }
+                });
+                this.openFloors = newOpen;
+            },
+
+            collapseAllFloors() {
+                this.openFloors = {};
+            },
+
+            getFloorVacantCount(floor) {
+                if (!floor || !floor.rooms) return 0;
+                let count = 0;
+                floor.rooms.forEach(r => {
+                    if (r.beds) {
+                        count += r.beds.filter(b => b.status === 'AVAILABLE').length;
+                    }
+                });
+                return count;
+            },
+
+            openBedInspection(bed, room) {
+                this.selectedBed = {
+                    id: bed.id,
+                    identifier: bed.identifier,
+                    status: bed.status,
+                    status_display: bed.status_display || bed.status,
+                    occupant: bed.occupant,
+                    room: room.room_number,
+                    block: room.block_name || '',
+                    cooling: room.cooling_display || room.cooling_type
+                };
+                this.selectedRoom = room;
+            },
+
+            isRoomFull(r) {
+                if (!r || !r.beds || r.beds.length === 0) return false;
+                return r.beds.every(b => b.status === 'OCCUPIED' || b.status === 'RESERVED');
+            }
+        };
+    });
+});
+</script>
+{% endblock %}

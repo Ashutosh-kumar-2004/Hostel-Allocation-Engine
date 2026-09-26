@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+
+{% block title %}Campus Hostels &amp; Residential Inventory (M1){% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{ showAddHostelModal: false }">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div>
+            <div class="flex items-center space-x-2 text-xs font-semibold text-indigo-700 mb-1">
+                <span>Inventory Module (M1)</span>
+                <span class="text-slate-300">•</span>
+                <span>Granular Hierarchy</span>
+                {% if is_admin %}
+                    <span class="text-slate-300">•</span>
+                    <span class="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold">Admin Power Enabled</span>
+                {% endif %}
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Hostel Inventory Management</h1>
+            <p class="text-xs text-slate-500 mt-1">
+                Hostel &rarr; Block &rarr; Floor &rarr; Room (AC/Cooler/Fan) &rarr; Bed. Bed-level granularity ensures no double allocation is possible.
+            </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+            {% if is_admin %}
+                <button @click="showAddHostelModal = true" class="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-xs font-bold text-white shadow-sm transition flex items-center space-x-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    <span>+ Add New Hostel</span>
+                </button>
+                <a href="{% url 'inventory:warden_assignments' %}" class="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-xs font-semibold text-purple-700 border border-purple-200 transition">
+                    Warden Assignments &rarr;
+                </a>
+            {% endif %}
+            <a href="{% url 'inventory:explorer' %}" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold text-white shadow-sm transition">
+                Student Explorer &rarr;
+            </a>
+            <a href="{% url 'inventory:bed_map' %}" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white shadow-sm transition">
+                Bed Map &rarr;
+            </a>
+        </div>
+    </div>
+
+    <!-- Hostels Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for hostel in hostels %}
+            <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:border-indigo-300 transition group">
+                <div>
+                    <div class="flex items-center justify-between">
+                        <span class="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold">{{ hostel.code }}</span>
+                        {% if hostel.gender_type == 'M' %}
+                            <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">Boys</span>
+                        {% elif hostel.gender_type == 'F' %}
+                            <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">Girls</span>
+                        {% else %}
+                            <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Co-Ed</span>
+                        {% endif %}
+                    </div>
+
+                    <h3 class="text-lg font-bold text-slate-900 mt-3 group-hover:text-indigo-600 transition">{{ hostel.name }}</h3>
+                    <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ hostel.description|default:"Campus residential hall." }}</p>
+
+                    <!-- Assigned Warden Info -->
+                    <div class="mt-4 p-3 rounded-xl bg-purple-50/60 border border-purple-100 text-xs">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-[10px] uppercase font-bold text-purple-600">Assigned Warden:</span>
+                            {% if is_admin and not hostel.warden_assignment %}
+                                <a href="{% url 'inventory:warden_assignments' %}" class="text-[10px] text-purple-700 font-bold hover:underline">
+                                    + Assign Warden
+                                </a>
+                            {% endif %}
+                        </div>
+                        {% if hostel.warden_assignment %}
+                            <span class="font-bold text-slate-900 block">{{ hostel.warden_assignment.warden_name }}</span>
+                            <span class="block text-slate-500 text-[11px] font-mono">{{ hostel.warden_assignment.warden_email }}</span>
+                        {% else %}
+                            <span class="text-slate-400 italic">No warden assigned yet.</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Metrics -->
+                    <div class="mt-4 grid grid-cols-2 gap-2 text-xs">
+                        <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                            <span class="text-slate-400 text-[10px] uppercase block">Total Beds</span>
+                            <span class="font-bold text-slate-900 text-sm">{{ hostel.total_beds }}</span>
+                        </div>
+                        <div class="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
+                            <span class="text-emerald-600 text-[10px] uppercase block">Available Beds</span>
+                            <span class="font-bold text-emerald-700 text-sm">{{ hostel.available_beds }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <a href="{% url 'inventory:bed_map_hostel' hostel.id %}" class="font-semibold text-emerald-700 hover:text-emerald-800 flex items-center space-x-1">
+                        <span>Manage Bed Map</span>
+                        <span>&rarr;</span>
+                    </a>
+                    <a href="{% url 'inventory:explorer' %}?gender={{ hostel.gender_type }}" class="text-indigo-600 hover:underline">
+                        Explore Rooms &rarr;
+                    </a>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-span-full p-12 text-center bg-white border border-slate-200 rounded-2xl text-slate-400">
+                No hostels configured yet. Use the "+ Add New Hostel" button to create your first hostel.
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Admin Power: Add Hostel Modal (Alpine.js) -->
+    {% if is_admin %}
+    <div x-show="showAddHostelModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4" @click.away="showAddHostelModal = false">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                        H
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-base">Provision New Hostel</h3>
+                        <p class="text-xs text-slate-500">System Administrator Authority</p>
+                    </div>
+                </div>
+                <button @click="showAddHostelModal = false" class="text-slate-400 hover:text-slate-600 p-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form method="POST" action="{% url 'inventory:create_hostel' %}" class="space-y-4 text-xs">
+                {% csrf_token %}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Hostel Code *</label>
+                        <input type="text" name="code" required placeholder="e.g. BH-7 or GH-3" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 font-mono uppercase focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <span class="text-[10px] text-slate-400">Short unique code</span>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Gender Designation *</label>
+                        <select name="gender_type" required class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <option value="M">Boys Hostel (Male)</option>
+                            <option value="F">Girls Hostel (Female)</option>
+                            <option value="C">Co-Ed Hostel</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Hostel Name *</label>
+                    <input type="text" name="name" required placeholder="e.g. Homi Bhabha Hall of Residence" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Campus Address / Location</label>
+                    <input type="text" name="address" placeholder="e.g. North Campus, Sector 4, Tech Zone" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Description &amp; Amenities</label>
+                    <textarea name="description" rows="2" placeholder="e.g. Modern residential complex with study halls, Wi-Fi, and cafeteria." class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"></textarea>
+                </div>
+
+                <div class="p-3 bg-purple-50/70 border border-purple-100 rounded-xl text-[11px] text-purple-800">
+                    <p class="font-bold">Automatic Provisioning:</p>
+                    <p class="mt-0.5 text-purple-700">Creates the hostel with an initial <strong>Block A</strong> and <strong>Ground Floor</strong> ready for room and bed provisioning.</p>
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" @click="showAddHostelModal = false" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-sm transition">
+                        Create Hostel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
