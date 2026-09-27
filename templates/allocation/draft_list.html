@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Allocation Drafts & Engine Console · M6 Module{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{ runModalOpen: false }">
+    <!-- Header Hero Banner with Actions -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div>
+            <div class="flex items-center space-x-2 text-xs font-semibold text-indigo-700 mb-1">
+                <span>Allocation Module (M6)</span>
+                <span class="text-slate-300">•</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    Deterministic Greedy Heuristic
+                </span>
+                <span class="text-slate-300">•</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Atomic Roommate Pairing
+                </span>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Constraint-Driven Allocation Drafts</h1>
+            <p class="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                The engine processes eligible applications against bed capacities, strict gender blocks, accessibility mandates, and M5 lifestyle compatibility scores. 
+                <strong>Governance Rule:</strong> The engine produces an isolated draft only; human warden approval is required before publication.
+            </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+            <button @click="runModalOpen = true" 
+                    type="button" 
+                    class="inline-flex items-center space-x-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm shadow-indigo-200 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+                <span>Run Allocation Engine &rarr;</span>
+            </button>
+            <a href="{% url 'review:dashboard' %}" 
+               class="inline-flex items-center space-x-1.5 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition">
+                <span>Warden Review (M7)</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Live System Overview Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Intake Candidates</span>
+            <div class="text-xl font-extrabold text-slate-900 mt-1">{{ total_eligible }}</div>
+            <span class="text-[10px] text-emerald-600 font-semibold">Eligible &amp; Consented</span>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Available Beds</span>
+            <div class="text-xl font-extrabold text-indigo-700 mt-1">{{ total_available_beds }}</div>
+            <span class="text-[10px] text-slate-500 font-medium">Campus Inventory</span>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Generated Drafts</span>
+            <div class="text-xl font-extrabold text-slate-900 mt-1">{{ drafts|length }}</div>
+            <span class="text-[10px] text-slate-500 font-medium">Isolated Snapshots</span>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Scope</span>
+            <div class="text-sm font-extrabold text-purple-700 mt-1 truncate">
+                {% if is_admin %}Campus-Wide Scope{% elif warden_hostel %}{{ warden_hostel.name }}{% else %}Assigned Jurisdiction{% endif %}
+            </div>
+            <span class="text-[10px] text-slate-400 font-medium">Three-Role RBAC</span>
+        </div>
+    </div>
+
+    <!-- Drafts Ledger -->
+    <div class="space-y-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+                <h2 class="text-base font-bold text-slate-900">Allocation Drafts History</h2>
+            </div>
+            <span class="text-xs text-slate-400">Reproducible with deterministic seeds</span>
+        </div>
+
+        {% for draft in drafts %}
+            <div class="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5 hover:border-indigo-300 transition">
+                <div class="space-y-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="px-2.5 py-0.5 rounded-md text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {{ draft.run_identifier }}
+                        </span>
+                        <span class="text-xs text-slate-400">•</span>
+                        <span class="text-xs font-semibold text-slate-800">{{ draft.cycle.name }}</span>
+                        <span class="text-xs text-slate-400">•</span>
+                        <span class="text-xs text-slate-500">{{ draft.created_at|date:"M d, Y H:i" }}</span>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-4 text-xs text-slate-600">
+                        <span>Assigned Beds: <strong class="text-emerald-700 font-bold">{{ draft.assigned_count }}</strong></span>
+                        <span>Unassigned / Waitlist: <strong class="text-amber-700 font-bold">{{ draft.unassigned_count }}</strong></span>
+                        <span>Tiebreak Seed: <code class="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono font-bold">{{ draft.random_seed }}</code></span>
+                        {% if draft.summary_metrics.mutual_pairs_honoured %}
+                            <span class="inline-flex items-center space-x-1 text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded">
+                                <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span>{{ draft.summary_metrics.mutual_pairs_honoured }} Mutual Pairs Co-Allocated</span>
+                            </span>
+                        {% endif %}
+                        {% if draft.summary_metrics.average_compatibility %}
+                            <span>Avg Synergy: <strong class="text-indigo-700">{{ draft.summary_metrics.average_compatibility|floatformat:2 }}</strong></span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-3 self-end md:self-auto">
+                    <span class="text-xs px-3 py-1 rounded-full font-bold
+                        {% if draft.status == 'COMPLETED' %}bg-amber-100 text-amber-800 border border-amber-200
+                        {% elif draft.status == 'PUBLISHED' %}bg-emerald-100 text-emerald-800 border border-emerald-200
+                        {% elif draft.status == 'REVIEWED' %}bg-blue-100 text-blue-800 border border-blue-200
+                        {% else %}bg-slate-100 text-slate-700 border border-slate-200{% endif %}">
+                        {{ draft.get_status_display }}
+                    </span>
+                    <a href="{% url 'allocation:draft_detail' draft.id %}" 
+                       class="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition">
+                        Inspect Assignments &rarr;
+                    </a>
+                </div>
+            </div>
+        {% empty %}
+            <div class="p-12 text-center bg-white border border-slate-200 rounded-2xl text-slate-400 space-y-3">
+                <div class="w-12 h-12 mx-auto rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                    </svg>
+                </div>
+                <h3 class="text-sm font-bold text-slate-800">No Allocation Drafts Recorded</h3>
+                <p class="text-xs text-slate-500 max-w-sm mx-auto">
+                    Click the <strong>Run Allocation Engine</strong> button above to launch an automated constraint-respecting allocation draft.
+                </p>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Launch Allocation Run Modal (Alpine.js) -->
+    <div x-show="runModalOpen" 
+         x-cloak 
+         class="fixed inset-0 z-50 overflow-y-auto" 
+         aria-labelledby="modal-title" 
+         role="dialog" 
+         aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div x-show="runModalOpen" 
+                 x-transition:enter="ease-out duration-300" 
+                 x-transition:enter-start="opacity-0" 
+                 x-transition:enter-end="opacity-100" 
+                 x-transition:leave="ease-in duration-200" 
+                 x-transition:leave-start="opacity-100" 
+                 x-transition:leave-end="opacity-0" 
+                 class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity" 
+                 @click="runModalOpen = false"></div>
+
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div x-show="runModalOpen" 
+                 x-transition:enter="ease-out duration-300" 
+                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
+                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" 
+                 x-transition:leave="ease-in duration-200" 
+                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" 
+                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
+                 class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-slate-200">
+                
+                <form method="POST" action="{% url 'allocation:trigger' %}">
+                    {% csrf_token %}
+                    <div class="bg-white p-6 space-y-4">
+                        <div class="flex items-start space-x-3.5">
+                            <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-base font-bold text-slate-900">
+                                    Launch Constraint Allocation Solver
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-0.5">
+                                    Generates an isolated draft. No code path publishes directly without recorded warden approval.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Cycle Selector -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Allocation Cycle:</label>
+                            <select name="cycle_id" class="w-full text-xs rounded-xl border border-slate-300 px-3 py-2 bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500">
+                                {% for c in cycles %}
+                                    <option value="{{ c.id }}" {% if c.id == active_cycle.id %}selected{% endif %}>
+                                        {{ c.name }} ({{ c.code }}) - [{{ c.get_status_display }}]
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Scope Selector -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Hostel Scope:</label>
+                            {% if is_admin %}
+                                <select name="hostel_id" class="w-full text-xs rounded-xl border border-slate-300 px-3 py-2 bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500">
+                                    <option value="ALL">Campus-Wide (All University Residences)</option>
+                                    {% for h in available_hostels %}
+                                        <option value="{{ h.id }}">{{ h.name }} ({{ h.get_gender_type_display }})</option>
+                                    {% endfor %}
+                                </select>
+                            {% elif warden_hostel %}
+                                <div class="px-3 py-2 rounded-xl bg-purple-50 border border-purple-200 text-xs font-semibold text-purple-800">
+                                    {{ warden_hostel.name }} (Jurisdiction Locked)
+                                </div>
+                                <input type="hidden" name="hostel_id" value="{{ warden_hostel.id }}">
+                            {% endif %}
+                        </div>
+
+                        <!-- Random Seed (Reproducibility) -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Deterministic Tiebreak Seed:</label>
+                            <input type="number" name="random_seed" value="42" class="w-full text-xs rounded-xl border border-slate-300 px-3 py-2 font-mono text-slate-800 focus:ring-2 focus:ring-indigo-500">
+                            <span class="text-[10px] text-slate-400 mt-1 block">Identical seed ensures 100% reproducible tiebreaks across runs.</span>
+                        </div>
+
+                        <!-- Policy Checklist Notice -->
+                        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1.5">
+                            <div class="font-bold text-slate-800 text-[11px] uppercase tracking-wider">Engine Constraints Enforced:</div>
+                            <div class="flex items-center space-x-1.5 text-[11px]">
+                                <span class="text-emerald-600 font-bold">✓</span>
+                                <span><strong>Bed Capacity:</strong> 1 applicant per bed; zero double-booking</span>
+                            </div>
+                            <div class="flex items-center space-x-1.5 text-[11px]">
+                                <span class="text-emerald-600 font-bold">✓</span>
+                                <span><strong>Gender Isolation:</strong> Strict biological sex block policy</span>
+                            </div>
+                            <div class="flex items-center space-x-1.5 text-[11px]">
+                                <span class="text-emerald-600 font-bold">✓</span>
+                                <span><strong>Accessibility:</strong> Wheelchair students allocated to ground floor</span>
+                            </div>
+                            <div class="flex items-center space-x-1.5 text-[11px]">
+                                <span class="text-emerald-600 font-bold">✓</span>
+                                <span><strong>Atomic Mutual Pairs:</strong> Confirmed roommate pairs placed in same room</span>
+                            </div>
+                            <div class="flex items-center space-x-1.5 text-[11px]">
+                                <span class="text-emerald-600 font-bold">✓</span>
+                                <span><strong>M5 Lifestyle Synergy:</strong> Roommates paired by maximum compatibility</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 px-6 py-4 flex items-center justify-end space-x-3 border-t border-slate-200">
+                        <button type="button" 
+                                @click="runModalOpen = false" 
+                                class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-200/80 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" 
+                                class="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200 transition">
+                            Execute Allocation Run &rarr;
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
