@@ -1,0 +1,779 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}What-If Allocation Simulator · Warden Console{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/simulation.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="sim-wrap" x-data="{ 
+    activePanel: '{% if request.GET.panel == 'simulator' %}simulator{% elif loaded_scenario %}simulator{% elif request.GET.panel == 'saved' %}saved{% else %}simulator{% endif %}',
+    selectedBed: null,
+    showSimBeds: {% if result %}true{% else %}false{% endif %},
+    simOccupants: {
+      {% if result and result.bed_allocations %}
+        {% for b_id, alloc in result.bed_allocations.items %}
+          '{{ b_id }}': { 
+            occupant: '{{ alloc.occupant_name }}', 
+            student_id: '{{ alloc.student_id }}', 
+            cooling: '{{ alloc.cooling }}',
+            status: '{{ alloc.status|default:"SIMULATED_OCCUPIED" }}',
+            display_status: '{% if alloc.is_reserved or alloc.status == "SIMULATED_RESERVED" %}Simulated Reserved{% elif alloc.status == "SIMULATED_OCCUPIED" or alloc.is_simulated %}Simulated Occupied{% else %}Occupied{% endif %}',
+            is_reserved: {% if alloc.is_reserved or alloc.status == "SIMULATED_RESERVED" %}true{% else %}false{% endif %}
+          },
+        {% endfor %}
+      {% endif %}
+    }
+}">
+
+  <!-- Page Header with Two Switchable Panel Tabs -->
+  <div class="sim-page-head flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+      <h1>What-if allocation simulator</h1>
+      <p>Try a change and see its effect before it's real. Simulations never touch the published allocation or current bed assignments.</p>
+    </div>
+
+    <!-- Two-Panel Switcher Buttons (One open at a time) -->
+    <div class="inline-flex items-center p-1 bg-slate-200/80 rounded-xl border border-slate-300 text-xs font-semibold self-start md:self-auto shadow-2xs">
+      <button type="button" 
+              @click="activePanel = 'simulator'"
+              :class="activePanel === 'simulator' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
+              class="inline-flex items-center px-4 py-2 rounded-lg transition cursor-pointer">
+        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        <span>Run Simulator Panel</span>
+      </button>
+
+      <button type="button" 
+              @click="activePanel = 'saved'"
+              :class="activePanel === 'saved' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
+              class="inline-flex items-center px-4 py-2 rounded-lg transition cursor-pointer">
+        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+        </svg>
+        <span>Saved Scenarios Panel</span>
+        <span class="ml-2 px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200">
+          {{ saved_scenarios|length }}
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- PANEL 1: RUN SIMULATOR (Only open when activePanel === 'simulator') -->
+  <div x-show="activePanel === 'simulator'" x-cloak>
+    <form id="simForm" method="POST" action="{% url 'allocation:simulation' %}{% if request.GET.hostel_id %}?hostel_id={{ request.GET.hostel_id }}{% endif %}">
+      {% csrf_token %}
+      <input type="hidden" name="action" id="simAction" value="run_simulation">
+      <input type="hidden" name="scenario_name" id="scenarioNameInput" value="Scenario Snapshot">
+
+    <div class="sim-grid">
+      <!-- ===== PARAMETERS RAIL ===== -->
+      <div>
+        <!-- Constraint Weighting -->
+        <div class="sim-panel">
+          <h2>Constraint weighting</h2>
+          <p class="hint">Adjust how strongly the engine favours stated preference over roommate compatibility.</p>
+          <div class="sim-field">
+            <div class="sim-field-row">
+              <label>Preference weight</label>
+              <span class="val" id="prefVal">{{ pref_weight }}%</span>
+            </div>
+            <input type="range" name="pref_weight" min="0" max="100" value="{{ pref_weight }}" id="prefSlider" oninput="syncWeights('pref')">
+          </div>
+          <div class="sim-field">
+            <div class="sim-field-row">
+              <label>Compatibility weight</label>
+              <span class="val" id="compVal">{{ comp_weight }}%</span>
+            </div>
+            <input type="range" name="comp_weight" min="0" max="100" value="{{ comp_weight }}" id="compSlider" oninput="syncWeights('comp')">
+          </div>
+        </div>
+
+        <!-- Reserved Quota -->
+        <div class="sim-panel">
+          <h2>Reserved quota</h2>
+          <p class="hint">Reserved-category share of total beds for this cycle.</p>
+          <div class="sim-field">
+            <div class="sim-field-row">
+              <label>Reserved quota</label>
+              <span class="val" id="quotaVal">{{ reserved_quota }}%</span>
+            </div>
+            <input type="range" name="reserved_quota" min="0" max="40" value="{{ reserved_quota }}" id="quotaSlider" oninput="document.getElementById('quotaVal').textContent=this.value+'%'">
+          </div>
+        </div>
+
+        <!-- Proposed Inventory Change -->
+        <div class="sim-panel">
+          <h2>Proposed inventory change</h2>
+          <p class="hint">A hypothetical change, evaluated only inside this simulation.</p>
+          <div class="sim-hypothetical">
+            <span class="tag">Proposed — not applied</span>
+            <div class="sim-field">
+              <div class="sim-field-row"><label>Block &amp; floor</label></div>
+              <select class="sim-select" name="hypo_block">
+                {% for block in blocks %}
+                  <option value="{{ block.code }}" {% if hypo_block == block.code %}selected{% endif %}>{{ block.name }} (All Floors)</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="sim-field" style="margin-bottom:0">
+              <div class="sim-field-row"><label>Cooling type</label></div>
+              <select class="sim-select" name="hypo_cooling">
+                <option value="Convert to AC" {% if hypo_cooling == "Convert to AC" %}selected{% endif %}>Convert to AC</option>
+                <option value="Convert to Cooler" {% if hypo_cooling == "Convert to Cooler" %}selected{% endif %}>Convert to Cooler</option>
+                <option value="No change" {% if hypo_cooling == "No change" %}selected{% endif %}>No change</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Exclude From Run -->
+        <div class="sim-panel">
+          <h2>Exclude from this run</h2>
+          <p class="hint">Temporarily remove a block from consideration, e.g. for renovation.</p>
+          <div class="sim-checklist">
+            {% for block in blocks %}
+              <label>
+                <input type="checkbox" name="excluded_blocks" value="{{ block.code }}" {% if block.code in excluded_blocks %}checked{% endif %}>
+                {{ block.name }} — {% if forloop.counter == 2 %}under maintenance{% elif forloop.counter == 3 %}closed for repairs{% else %}renovation review{% endif %}
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Random Seed -->
+        <div class="sim-panel">
+          <h2>Random seed</h2>
+          <p class="hint">Same seed, same result — needed to compare runs fairly.</p>
+          <div class="sim-seed-row">
+            <input type="text" class="sim-input" name="seed" value="{{ seed_val }}" id="seedInput">
+            <button type="button" class="btn-ghost" onclick="document.getElementById('seedInput').value = Math.floor(Math.random()*90000+10000)">Randomize</button>
+          </div>
+        </div>
+
+        <!-- Simulation Sample Size -->
+        <input type="hidden" name="sample_size" value="{{ baseline_stats.total_beds }}">
+
+        <button type="button" class="btn-run" id="runBtn" onclick="submitSimulation()">Run simulation</button>
+      </div>
+
+      <!-- ===== RESULTS & BED MAP ===== -->
+      <div>
+        <!-- Empty State -->
+        <div class="results-empty {% if result %}sim-hidden{% endif %}" id="emptyState">
+          <div class="glyph">?</div>
+          <h3>No simulation run yet</h3>
+          <p>Set your parameters on the left, then run a simulation to see how the allocation would change.</p>
+        </div>
+
+        <!-- Skeleton State -->
+        <div class="sim-skeleton" id="skeletonState">
+          <div class="skel-row"></div>
+          <div class="skel-row"></div>
+          <div class="skel-row" style="height: 180px;"></div>
+        </div>
+
+        <!-- Active Results State -->
+        <div id="resultsState" class="{% if not result %}sim-hidden{% endif %}">
+          {% if result %}
+            <div class="compare-grid">
+              <!-- Allocated -->
+              <div class="compare-cell">
+                <div class="m-label">Allocated</div>
+                <div class="m-current">Current: {{ result.current_allocated }}</div>
+                <div class="m-sim">{{ result.sim_allocated }}</div>
+                {% if result.delta_allocated > 0 %}
+                  <span class="m-delta delta-up-good">&uarr; {{ result.delta_allocated }}</span>
+                {% elif result.delta_allocated < 0 %}
+                  <span class="m-delta delta-down-bad">&darr; {{ result.delta_allocated|stringformat:"s"|slice:"1:" }}</span>
+                {% else %}
+                  <span class="m-delta delta-flat">No change</span>
+                {% endif %}
+              </div>
+
+              <!-- Waitlisted -->
+              <div class="compare-cell">
+                <div class="m-label">Waitlisted</div>
+                <div class="m-current">Current: {{ result.current_waitlisted }}</div>
+                <div class="m-sim">{{ result.sim_waitlisted }}</div>
+                {% if result.delta_waitlisted > 0 %}
+                  <span class="m-delta delta-down-bad">&uarr; {{ result.delta_waitlisted }}</span>
+                {% elif result.delta_waitlisted < 0 %}
+                  <span class="m-delta delta-up-good">&darr; {{ result.delta_waitlisted|stringformat:"s"|slice:"1:" }}</span>
+                {% else %}
+                  <span class="m-delta delta-flat">No change</span>
+                {% endif %}
+              </div>
+
+              <!-- 1st preference met -->
+              <div class="compare-cell">
+                <div class="m-label">1st preference met</div>
+                <div class="m-current">Current: {{ result.current_first_pref_met_pct }}%</div>
+                <div class="m-sim">{{ result.sim_first_pref_met_pct }}%</div>
+                {% if result.delta_pref_pts > 0 %}
+                  <span class="m-delta delta-up-good">&uarr; {{ result.delta_pref_pts }} pts</span>
+                {% elif result.delta_pref_pts < 0 %}
+                  <span class="m-delta delta-down-bad">&darr; {{ result.delta_pref_pts|stringformat:"s"|slice:"1:" }} pts</span>
+                {% else %}
+                  <span class="m-delta delta-flat">No change</span>
+                {% endif %}
+              </div>
+
+              <!-- Avg. compatibility -->
+              <div class="compare-cell">
+                <div class="m-label">Avg. compatibility</div>
+                <div class="m-current">Current: {{ result.current_avg_compatibility }}</div>
+                <div class="m-sim">{{ result.sim_avg_compatibility }}</div>
+                {% if result.delta_compatibility > 0 %}
+                  <span class="m-delta delta-up-good">&uarr; {{ result.delta_compatibility }}</span>
+                {% elif result.delta_compatibility < 0 %}
+                  <span class="m-delta delta-down-bad">&darr; {{ result.delta_compatibility|stringformat:"s"|slice:"1:" }}</span>
+                {% else %}
+                  <span class="m-delta delta-flat">No change</span>
+                {% endif %}
+              </div>
+
+              <!-- Hard-constraint failures -->
+              <div class="compare-cell">
+                <div class="m-label">Hard-constraint failures</div>
+                <div class="m-current">Current: {{ result.current_hard_failures }}</div>
+                <div class="m-sim">{{ result.sim_hard_failures }}</div>
+                <span class="m-delta delta-flat">No change</span>
+              </div>
+            </div>
+
+            <!-- Block-by-block occupancy comparison bars -->
+            <div class="section-title">Occupancy by block — current vs. simulation</div>
+            {% for bc in result.block_comparisons %}
+              <div class="bar-two {% if not forloop.first %}mt-3{% endif %}">
+                <div class="bar-line">
+                  <span class="bl-tag">{{ bc.block_name }}</span>
+                  <div class="track">
+                    <div class="fill current" :style="'width: ' + '{{ bc.current_pct }}' + '%'"></div>
+                  </div>
+                  <span class="pct">{{ bc.current_pct }}%</span>
+                </div>
+                <div class="bar-line">
+                  <span class="bl-tag"></span>
+                  <div class="track">
+                    <div class="fill sim" :style="'width: ' + '{{ bc.simulated_pct }}' + '%'"></div>
+                  </div>
+                  <span class="pct">{{ bc.simulated_pct }}%</span>
+                </div>
+              </div>
+            {% endfor %}
+            <p style="font-size:12px; color:var(--text-faint); margin-top:8px;">Grey bar = current allocation · Indigo bar = this simulation</p>
+
+            <div class="result-actions">
+              <button type="button" class="btn-save" onclick="saveSimulationSnapshot()">Save this simulation</button>
+              <button type="button" class="btn-discard" onclick="discardResults()">Discard</button>
+            </div>
+            <div class="expiry-note">Saved simulations are kept in isolation for review and never modify live beds or published allocations.</div>
+          {% endif %}
+        </div>
+
+        {% if saved_scenarios %}
+          <!-- Saved Scenarios History Panel -->
+          <div class="mt-6 bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+              <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Saved Scenario Snapshots ({{ saved_scenarios|length }})</span>
+              <span class="text-[11px] text-slate-400">Isolated snapshots</span>
+            </div>
+            <div class="space-y-2">
+              {% for sc in saved_scenarios %}
+                <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                  <div>
+                    <div class="font-bold text-slate-900">{{ sc.name }}</div>
+                    <div class="text-[10px] text-slate-500">
+                      Seed: {{ sc.seed }} · Weights: {{ sc.pref_weight }}% pref / {{ sc.comp_weight }}% comp · Quota: {{ sc.reserved_quota }}%
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      Allocated: {{ sc.result_metrics.sim_allocated }} beds
+                    </span>
+                    <div class="text-[9px] text-slate-400 mt-0.5">{{ sc.created_at|date:"M d, H:i" }}</div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- ============================================== -->
+        <!-- HOSTEL BED MAP FOR THIS PARTICULAR SIMULATION -->
+        <!-- ============================================== -->
+        <div class="mt-8 pt-6 border-t border-slate-200">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-base font-bold text-slate-900 tracking-tight">Hostel Bed Map — {{ current_hostel.name }} ({{ current_hostel.code }})</h3>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase {% if result %}bg-indigo-600 text-white shadow-2xs{% else %}bg-slate-200 text-slate-700{% endif %}">
+                  {% if result %}Simulated Result{% else %}Live Inventory{% endif %}
+                </span>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">Floor-by-floor and bed-by-bed allocation distribution for this hostel.</p>
+            </div>
+
+            <!-- View Toggle if simulation exists -->
+            {% if result %}
+              <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold shadow-2xs">
+                <button type="button" @click="showSimBeds = false" :class="!showSimBeds ? 'bg-white shadow-xs text-slate-900 font-bold' : 'text-slate-500 hover:text-slate-700'" class="px-3.5 py-1.5 rounded-lg transition cursor-pointer">Baseline View</button>
+                <button type="button" @click="showSimBeds = true" :class="showSimBeds ? 'bg-indigo-600 shadow-xs text-white font-bold' : 'text-slate-500 hover:text-slate-700'" class="px-3.5 py-1.5 rounded-lg transition cursor-pointer">Simulated Result</button>
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Status Legend -->
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mb-5 text-xs">
+            <div class="bg-white border border-slate-200 rounded-lg p-2.5 flex items-center space-x-2">
+              <span class="w-3 h-3 rounded-full bg-emerald-500 flex-shrink-0"></span>
+              <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Available</div>
+                <div class="font-bold text-emerald-700">{{ baseline_stats.available }} beds</div>
+              </div>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-lg p-2.5 flex items-center space-x-2">
+              <span class="w-3 h-3 rounded-full bg-rose-500 flex-shrink-0"></span>
+              <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Occupied</div>
+                <div class="font-bold text-rose-700">{{ baseline_stats.occupied }} beds</div>
+              </div>
+            </div>
+            {% if result %}
+              <div class="bg-indigo-50/70 border border-indigo-400 rounded-lg p-2 flex items-center space-x-2 shadow-2xs">
+                <span class="w-3 h-3 rounded-full bg-indigo-600 flex-shrink-0"></span>
+                <div>
+                  <div class="text-[9px] uppercase font-bold text-indigo-700">Sim. Occupied</div>
+                  <div class="font-bold text-indigo-900 text-xs">{{ result.sim_allocated }} beds</div>
+                </div>
+              </div>
+              <div class="bg-amber-50/70 border border-amber-400 rounded-lg p-2 flex items-center space-x-2 shadow-2xs">
+                <span class="w-3 h-3 rounded-full bg-amber-500 flex-shrink-0"></span>
+                <div>
+                  <div class="text-[9px] uppercase font-bold text-amber-700">Sim. Reserved</div>
+                  <div class="font-bold text-amber-900 text-xs">{{ reserved_quota }}% quota</div>
+                </div>
+              </div>
+            {% else %}
+              <div class="bg-white border border-slate-200 rounded-lg p-2 flex items-center space-x-2">
+                <span class="w-3 h-3 rounded-full bg-amber-500 flex-shrink-0"></span>
+                <div>
+                  <div class="text-[9px] uppercase font-bold text-slate-400">Reserved</div>
+                  <div class="font-bold text-amber-700 text-xs">{{ baseline_stats.reserved }} beds</div>
+                </div>
+              </div>
+            {% endif %}
+            <div class="bg-white border border-slate-200 rounded-lg p-2.5 flex items-center space-x-2">
+              <span class="w-3 h-3 rounded-full bg-slate-400 flex-shrink-0"></span>
+              <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Maintenance</div>
+                <div class="font-bold text-slate-700">{{ baseline_stats.maintenance }} beds</div>
+              </div>
+            </div>
+            <div class="bg-white border border-slate-200 rounded-lg p-2.5 flex items-center space-x-2">
+              <span class="w-3 h-3 rounded-full bg-indigo-500 flex-shrink-0"></span>
+              <div>
+                <div class="text-[10px] uppercase font-bold text-slate-400">Total Capacity</div>
+                <div class="font-bold text-slate-900">{{ baseline_stats.total_beds }} beds</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Blocks & Bed Map Layout -->
+          <div class="space-y-5">
+            {% for block in blocks %}
+              <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                  <div class="flex items-center space-x-2">
+                    <span class="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      {{ block.name }}
+                    </span>
+                    <span class="text-xs text-slate-500">Floors: {{ block.number_of_floors }}</span>
+                    {% if block.code in excluded_blocks %}
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">Excluded from Run</span>
+                    {% endif %}
+                  </div>
+                  <span class="text-xs text-slate-400">Click any bed to inspect simulated details</span>
+                </div>
+
+                <!-- Rooms Grid in Block -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {% for room in block.rooms.all %}
+                    <div class="p-3.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-white hover:border-indigo-300 transition shadow-2xs">
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-1.5">
+                          <span class="font-bold text-slate-900 text-xs">Room {{ room.room_number }}</span>
+                          <span class="text-[10px] text-slate-400">Fl. {{ room.floor_number }}</span>
+                        </div>
+                        <div>
+                          {% if room.cooling_type == "AC" %}
+                            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800">AC</span>
+                          {% elif room.cooling_type == "COOLER" %}
+                            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-100 text-teal-800">Cooler</span>
+                          {% else %}
+                            <span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-200 text-slate-700">Fan</span>
+                          {% endif %}
+                        </div>
+                      </div>
+
+                      <div class="mt-1 text-[11px] text-slate-500">
+                        {{ room.get_room_type_display }} · {{ room.beds.count }} beds
+                      </div>
+
+                      <!-- Beds Layout inside Room -->
+                      <div class="mt-2.5 pt-2 border-t border-slate-200">
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                          {% for bed in room.beds.all %}
+                            <div 
+                              @click="
+                                const sim = simOccupants['{{ bed.id }}'];
+                                selectedBed = {
+                                  id: '{{ bed.id }}',
+                                  identifier: '{{ bed.bed_identifier }}',
+                                  room: '{{ room.room_number }}',
+                                  block: '{{ block.name }}',
+                                  cooling: '{{ room.cooling_type }}',
+                                  baseStatus: '{{ bed.status }}',
+                                  baseOccupant: '{{ bed.occupant_name|default:"" }}',
+                                  baseStudentId: '{{ bed.occupant_student_id|default:"" }}',
+                                  isSimAllocated: !!sim,
+                                  isSimReserved: sim ? sim.is_reserved : false,
+                                  simStatus: sim ? sim.display_status : 'Unallocated',
+                                  simOccupant: sim ? sim.occupant : ('{{ bed.occupant_name|default:"Vacant Bed" }}'),
+                                  simStudentId: sim ? sim.student_id : ('{{ bed.occupant_student_id|default:"—" }}')
+                                }
+                              "
+                              class="p-1.5 rounded text-center cursor-pointer transition text-[11px] font-semibold"
+                              :class="
+                                showSimBeds && simOccupants['{{ bed.id }}'] ? 
+                                  (simOccupants['{{ bed.id }}'].is_reserved ? 'bed-card-simulated-reserved' : 'bed-card-simulated-occupied') :
+                                  '{% if bed.status == 'AVAILABLE' %}bed-card-available{% elif bed.status == 'OCCUPIED' %}bed-card-occupied{% elif bed.status == 'RESERVED' %}bed-card-reserved{% else %}bed-card-maintenance{% endif %}'
+                              ">
+                              <div>Bed {{ bed.bed_identifier }}</div>
+                              <div class="text-[9px] uppercase font-bold truncate mt-0.5 px-1 py-0.5 rounded transition"
+                                   :class="
+                                     showSimBeds && simOccupants['{{ bed.id }}'] ? 
+                                       (simOccupants['{{ bed.id }}'].is_reserved ? 'bg-amber-500 text-white shadow-2xs' : 'bg-indigo-600 text-white shadow-2xs') : 
+                                       'text-slate-500'
+                                   "
+                                   x-text="showSimBeds && simOccupants['{{ bed.id }}'] ? simOccupants['{{ bed.id }}'].display_status : '{{ bed.get_status_display }}'">
+                                {{ bed.get_status_display }}
+                              </div>
+                            </div>
+                          {% endfor %}
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </form>
+
+  <!-- Bed Inspection Modal -->
+  <div x-show="selectedBed" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full p-6 space-y-4" @click.away="selectedBed = null">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="font-bold text-slate-900 text-base">Bed Inspection</h3>
+          <p class="text-xs text-slate-500">
+            <span x-text="selectedBed?.block"></span> · Room <span x-text="selectedBed?.room"></span> · Bed <span x-text="selectedBed?.identifier"></span>
+          </p>
+        </div>
+        <button type="button" @click="selectedBed = null" class="text-slate-400 hover:text-slate-600 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-2.5 text-xs text-slate-700">
+        <div class="flex justify-between py-1 border-b border-slate-100">
+          <span class="text-slate-400">Baseline Status:</span>
+          <span class="font-bold uppercase" x-text="selectedBed?.baseStatus"></span>
+        </div>
+        <div class="flex justify-between py-1 border-b border-slate-100">
+          <span class="text-slate-400">Simulation Status:</span>
+          <span class="font-bold uppercase px-2.5 py-0.5 rounded text-[11px]" 
+                :class="
+                  selectedBed?.isSimAllocated ? 
+                    (selectedBed?.isSimReserved ? 'bg-amber-500 text-white' : 'bg-indigo-600 text-white') : 
+                    'text-slate-500 bg-slate-100'
+                "
+                x-text="selectedBed?.isSimAllocated ? selectedBed?.simStatus : 'UNALLOCATED / SAME'"></span>
+        </div>
+        <!-- When bed is allocated in simulation -->
+        <template x-if="selectedBed?.isSimAllocated && selectedBed?.simStatus !== 'OCCUPIED'">
+          <div class="space-y-2 pt-1 border-t border-slate-100">
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500 font-medium">Allocated Student:</span>
+              <span class="font-bold text-indigo-700" x-text="selectedBed?.simOccupant"></span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500 font-medium">Student Reg / ID:</span>
+              <span class="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded" x-text="selectedBed?.simStudentId"></span>
+            </div>
+          </div>
+        </template>
+
+        <!-- When bed has a baseline occupant -->
+        <template x-if="selectedBed?.baseOccupant">
+          <div class="space-y-2 pt-1 border-t border-slate-100">
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500 font-medium">Current Resident:</span>
+              <span class="font-bold text-slate-900" x-text="selectedBed?.baseOccupant"></span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500 font-medium">Student Reg / ID:</span>
+              <span class="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded" x-text="selectedBed?.baseStudentId"></span>
+            </div>
+          </div>
+        </template>
+
+        <!-- Vacant bed fallback -->
+        <template x-if="!selectedBed?.isSimAllocated && !selectedBed?.baseOccupant">
+          <div class="py-2 text-center text-slate-400 italic border-t border-slate-100">
+            Bed is currently vacant (No student allocated).
+          </div>
+        </template>
+
+        <div class="flex justify-between py-1 border-b border-slate-100">
+          <span class="text-slate-400">Room Cooling:</span>
+          <span class="font-medium text-slate-900" x-text="selectedBed?.cooling"></span>
+        </div>
+      </div>
+
+      <div class="pt-2 flex justify-end space-x-2">
+        <button type="button" @click="selectedBed = null" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-semibold">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  </div>
+  <!-- END PANEL 1: RUN SIMULATOR -->
+
+  <!-- PANEL 2: SAVED SCENARIOS (Only open when activePanel === 'saved') -->
+  <div x-show="activePanel === 'saved'" x-cloak class="mt-4">
+    <!-- Panel 2 Header & Quick Actions -->
+    <div class="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="inline-flex items-center justify-center p-2 rounded-xl bg-indigo-50 text-indigo-600">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+              </svg>
+            </span>
+            <h2 class="text-xl font-bold text-slate-900">Saved Simulation Scenarios</h2>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">
+              {{ saved_scenarios|length }} Saved
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">
+            Historical simulation snapshots for <strong class="text-slate-700">{{ current_hostel.name }}</strong>. Click any scenario to load its exact parameters and review outcome metrics in the Simulator panel.
+          </p>
+        </div>
+
+        <button type="button" 
+                @click="activePanel = 'simulator'"
+                class="inline-flex items-center px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer self-start sm:self-auto">
+          <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          Switch to Simulator
+        </button>
+      </div>
+    </div>
+
+    <!-- Scenarios Grid -->
+    {% if saved_scenarios %}
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        {% for sc in saved_scenarios %}
+          <div class="bg-white rounded-2xl border border-slate-200/90 hover:border-indigo-300 transition-all shadow-xs hover:shadow-md flex flex-col justify-between overflow-hidden group">
+            <!-- Card Header -->
+            <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <h3 class="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition">{{ sc.name }}</h3>
+                  <div class="flex items-center space-x-2 text-[11px] text-slate-500 mt-1">
+                    <span>{{ sc.created_at|date:"M d, Y · H:i" }}</span>
+                    <span>•</span>
+                    <span class="font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">Seed {{ sc.seed }}</span>
+                  </div>
+                </div>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  SNAPSHOT
+                </span>
+              </div>
+            </div>
+
+            <!-- Card Body / Parameters & Metrics -->
+            <div class="p-5 space-y-4 flex-1">
+              <!-- Parameter Badges -->
+              <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Scenario Parameters</p>
+                <div class="flex flex-wrap gap-1.5 text-xs">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
+                    Pref: <strong class="ml-1 text-slate-900">{{ sc.pref_weight }}%</strong>
+                  </span>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
+                    Comp: <strong class="ml-1 text-slate-900">{{ sc.comp_weight }}%</strong>
+                  </span>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
+                    Quota: <strong class="ml-1 text-slate-900">{{ sc.reserved_quota }}%</strong>
+                  </span>
+                  {% if sc.hypo_cooling %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100 font-medium">
+                      ❄️ {{ sc.hypo_block }}: {{ sc.hypo_cooling }}
+                    </span>
+                  {% endif %}
+                  {% if sc.excluded_blocks %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-100 font-medium">
+                      🚫 Excluded: {{ sc.excluded_blocks|join:", " }}
+                    </span>
+                  {% endif %}
+                </div>
+              </div>
+
+              <!-- Outcome Snapshot Metrics -->
+              {% if sc.result_metrics %}
+                <div class="bg-indigo-50/50 rounded-xl p-3 border border-indigo-100/60">
+                  <p class="text-[10px] font-bold text-indigo-700 uppercase tracking-wider mb-2">Simulated Outcome</p>
+                  <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span class="text-slate-500 block text-[11px]">Allocated Beds:</span>
+                      <span class="font-bold text-slate-900 text-sm">{{ sc.result_metrics.sim_allocated|default:"0" }}</span>
+                    </div>
+                    <div>
+                      <span class="text-slate-500 block text-[11px]">Delta vs Base:</span>
+                      <span class="font-bold {% if sc.result_metrics.delta_allocated > 0 %}text-emerald-600{% elif sc.result_metrics.delta_allocated < 0 %}text-rose-600{% else %}text-slate-700{% endif %} text-sm">
+                        {% if sc.result_metrics.delta_allocated > 0 %}+{% endif %}{{ sc.result_metrics.delta_allocated|default:"0" }} beds
+                      </span>
+                    </div>
+                    <div>
+                      <span class="text-slate-500 block text-[11px]">1st Pref Met:</span>
+                      <span class="font-semibold text-slate-800">{{ sc.result_metrics.sim_first_pref_met_pct|default:"0" }}%</span>
+                    </div>
+                    <div>
+                      <span class="text-slate-500 block text-[11px]">Avg Compat:</span>
+                      <span class="font-semibold text-slate-800">{{ sc.result_metrics.sim_avg_compatibility|default:"0" }}</span>
+                    </div>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Card Footer -->
+            <div class="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <span class="text-[11px] text-slate-400">
+                Created by {{ sc.created_by.username|default:"Warden" }}
+              </span>
+              <a href="{% url 'allocation:simulation' %}?hostel_id={{ current_hostel.id }}&scenario_id={{ sc.id }}&panel=simulator" 
+                 class="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-xs">
+                <span>Load in Simulator</span>
+                <svg class="w-3.5 h-3.5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                </svg>
+              </a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <!-- Empty State -->
+      <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center max-w-xl mx-auto my-8">
+        <div class="w-14 h-14 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+          </svg>
+        </div>
+        <h3 class="text-base font-bold text-slate-900 mb-1">No saved scenarios yet</h3>
+        <p class="text-xs text-slate-500 mb-5 leading-relaxed">
+          You haven't saved any simulation snapshots for {{ current_hostel.name }}. Switch to the Simulator panel, adjust constraints or block conditions, and click <strong>"Save as Scenario"</strong>.
+        </p>
+        <button type="button" 
+                @click="activePanel = 'simulator'"
+                class="inline-flex items-center px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-xs cursor-pointer">
+          <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          Go to Run Simulator Panel
+        </button>
+      </div>
+    {% endif %}
+  </div>
+  <!-- END PANEL 2: SAVED SCENARIOS -->
+
+  <!-- Toast Notification element -->
+  <div class="sim-toast" id="toast"><span class="dot"></span><span id="toastText">Simulation complete</span></div>
+
+</div>
+
+<script>
+function syncWeights(changed) {
+  const pref = document.getElementById('prefSlider');
+  const comp = document.getElementById('compSlider');
+  if (changed === 'pref') { 
+    comp.value = 100 - pref.value; 
+  } else { 
+    pref.value = 100 - comp.value; 
+  }
+  document.getElementById('prefVal').textContent = pref.value + '%';
+  document.getElementById('compVal').textContent = comp.value + '%';
+}
+
+function submitSimulation() {
+  document.getElementById('simAction').value = 'run_simulation';
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+
+  const emptyState = document.getElementById('emptyState');
+  const resultsState = document.getElementById('resultsState');
+  const skeletonState = document.getElementById('skeletonState');
+
+  if (emptyState) emptyState.style.display = 'none';
+  if (resultsState) resultsState.style.display = 'none';
+  if (skeletonState) skeletonState.style.display = 'block';
+
+  setTimeout(() => {
+    document.getElementById('simForm').submit();
+  }, 750);
+}
+
+function saveSimulationSnapshot() {
+  const scenarioTitle = prompt("Enter a label or title for this simulation scenario:", "What-If Scenario " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+  if (!scenarioTitle) return;
+  document.getElementById('simAction').value = 'save_scenario';
+  document.getElementById('scenarioNameInput').value = scenarioTitle;
+  document.getElementById('simForm').submit();
+}
+
+function discardResults() {
+  const resultsState = document.getElementById('resultsState');
+  const emptyState = document.getElementById('emptyState');
+  if (resultsState) resultsState.style.display = 'none';
+  if (emptyState) emptyState.style.display = 'flex';
+  showToast('Simulation discarded');
+}
+
+function showToast(text) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  document.getElementById('toastText').textContent = text;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+</script>
+{% endblock %}
