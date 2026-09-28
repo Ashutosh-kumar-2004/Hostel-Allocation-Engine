@@ -1,0 +1,639 @@
+{% extends 'base.html' %}
+
+{% block title %}Draft Review &amp; Manual Overrides · {{ draft.run_identifier }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{
+    reassignModalOpen: false,
+    swapModalOpen: false,
+    approveModalOpen: false,
+    selectedAssignmentId: '',
+    selectedStudentName: '',
+    selectedStudentRoll: '',
+    selectedStudentGender: '',
+    selectedGenderLabel: '',
+    selectedStudentAccessible: false,
+    selectedCurrentBed: '',
+    targetBedId: '',
+    swapTargetAssignmentId: '',
+    reassignReason: '',
+    swapReason: '',
+    approveComments: '',
+
+    allVacantBeds: [
+        {% for vb in vacant_beds %}
+        {
+            id: '{{ vb.id }}',
+            hostelName: '{{ vb.room.block.hostel.name|escapejs }}',
+            hostelCode: '{{ vb.room.block.hostel.code|escapejs }}',
+            hostelGender: '{{ vb.room.block.hostel.gender_type }}',
+            roomNumber: '{{ vb.room.room_number|escapejs }}',
+            bedIdentifier: '{{ vb.bed_identifier|escapejs }}',
+            roomType: '{{ vb.room.get_room_type_display|escapejs }}',
+            cooling: '{{ vb.room.get_cooling_type_display|escapejs }}',
+            isAccessible: {{ vb.is_accessible|yesno:'true,false' }},
+            label: '{{ vb.room.block.hostel.name|escapejs }} ({{ vb.room.block.hostel.code }}) · Room {{ vb.room.room_number|escapejs }} (Bed {{ vb.bed_identifier|escapejs }}) - {{ vb.room.get_room_type_display|escapejs }} [{{ vb.room.get_cooling_type_display|escapejs }}]{% if vb.is_accessible %} [♿ Accessible]{% endif %}'
+        },
+        {% endfor %}
+    ],
+    matchingVacantBeds: [],
+
+    allSwapCandidates: [
+        {% for other in assignments %}
+        {
+            id: '{{ other.id }}',
+            studentName: '{{ other.application.student_name|escapejs }}',
+            studentId: '{{ other.application.student_id|escapejs }}',
+            gender: '{{ other.application.gender }}',
+            isAccessible: {{ other.application.requires_accessible_room|yesno:'true,false' }},
+            hostelGender: '{{ other.bed.room.block.hostel.gender_type }}',
+            bedId: '{{ other.bed.id }}',
+            label: '{{ other.application.student_name|escapejs }} ({{ other.application.student_id }}) → {{ other.bed.room.block.hostel.code }} Room {{ other.bed.room.room_number }} (Bed {{ other.bed.bed_identifier }}) [{{ other.application.get_gender_display }}]'
+        },
+        {% endfor %}
+    ],
+    matchingSwapCandidates: [],
+
+    openReassign(assignmentId, studentName, studentRoll, gender, accessible, currentBed) {
+        this.selectedAssignmentId = assignmentId;
+        this.selectedStudentName = studentName;
+        this.selectedStudentRoll = studentRoll;
+        
+        const raw = (gender || '').trim().toUpperCase();
+        const norm = (raw === 'F' || raw === 'FEMALE') ? 'F' : ((raw === 'O' || raw === 'OTHER') ? 'O' : 'M');
+        this.selectedStudentGender = norm;
+        this.selectedGenderLabel = norm === 'F' ? 'Female (Women\'s Hostel)' : (norm === 'O' ? 'Other (Co-Ed Hostel)' : 'Male (Men\'s Hostel)');
+        this.selectedStudentAccessible = accessible === 'True' || accessible === true;
+        this.selectedCurrentBed = currentBed;
+        this.targetBedId = '';
+        this.reassignReason = '';
+
+        // Strictly filter vacant beds by candidate gender & accessibility
+        const isMale = (norm === 'M');
+        const isFemale = (norm === 'F');
+        this.matchingVacantBeds = this.allVacantBeds.filter(b => {
+            let matchGender = false;
+            if (b.hostelGender === 'C') {
+                matchGender = true;
+            } else if (isMale) {
+                matchGender = (b.hostelGender === 'M');
+            } else if (isFemale) {
+                matchGender = (b.hostelGender === 'W' || b.hostelGender === 'F');
+            } else {
+                matchGender = (b.hostelGender === 'C');
+            }
+            if (!matchGender) return false;
+            if (this.selectedStudentAccessible && !b.isAccessible) return false;
+            return true;
+        });
+
+        this.reassignModalOpen = true;
+    },
+
+    openSwap(assignmentId, studentName, studentRoll, gender, accessible, currentBed) {
+        this.selectedAssignmentId = assignmentId;
+        this.selectedStudentName = studentName;
+        this.selectedStudentRoll = studentRoll;
+
+        const raw = (gender || '').trim().toUpperCase();
+        const norm = (raw === 'F' || raw === 'FEMALE') ? 'F' : ((raw === 'O' || raw === 'OTHER') ? 'O' : 'M');
+        this.selectedStudentGender = norm;
+        this.selectedGenderLabel = norm === 'F' ? 'Female' : 'Male';
+        this.selectedStudentAccessible = accessible === 'True' || accessible === true;
+        this.selectedCurrentBed = currentBed;
+        this.swapTargetAssignmentId = '';
+        this.swapReason = '';
+
+        // Strictly filter swap candidates: must have same gender for single-gender hostels
+        this.matchingSwapCandidates = this.allSwapCandidates.filter(c => {
+            if (c.id === assignmentId) return false;
+            const cRaw = (c.gender || '').trim().toUpperCase();
+            const cNorm = (cRaw === 'F' || cRaw === 'FEMALE') ? 'F' : ((cRaw === 'O' || cRaw === 'OTHER') ? 'O' : 'M');
+            if (norm !== cNorm) return false;
+            return true;
+        });
+
+        this.swapModalOpen = true;
+    }
+}">
+
+    <!-- Breadcrumb & Top Bar -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div>
+            <div class="flex items-center space-x-2 text-xs font-semibold text-slate-500 mb-1">
+                <a href="{% url 'review:dashboard' %}" class="text-indigo-600 hover:underline">Warden Review Hub</a>
+                <span>&rarr;</span>
+                <span class="text-slate-800 font-mono">{{ draft.run_identifier }}</span>
+                {% if is_scoped_warden %}
+                    <span>•</span>
+                    <span class="text-indigo-700 font-bold">Scoped to {{ scoped_hostel.name }}</span>
+                {% endif %}
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2.5">
+                <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Draft Review &amp; Reallocation Console</h1>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold
+                    {% if draft.status == 'COMPLETED' %}bg-amber-100 text-amber-800 border border-amber-200
+                    {% elif draft.status == 'REVIEWED' %}bg-blue-100 text-blue-800 border border-blue-200
+                    {% elif draft.status == 'PUBLISHED' %}bg-emerald-100 text-emerald-800 border border-emerald-200
+                    {% else %}bg-slate-100 text-slate-700{% endif %}">
+                    {{ draft.get_status_display }}
+                </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">
+                Cycle: <strong>{{ draft.cycle.name }} ({{ draft.cycle.code }})</strong> · Seed: <code class="font-mono bg-slate-100 px-1 py-0.5 rounded text-indigo-700">{{ draft.random_seed }}</code>
+            </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="{% url 'review:overrides_log' draft.id %}" class="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition inline-flex items-center space-x-1.5">
+                <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Overrides Log ({{ overrides_count }})</span>
+            </a>
+
+            <a href="{% url 'allocation:draft_detail' draft.id %}" class="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition inline-flex items-center space-x-1.5">
+                <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+                <span>Bed Map &rarr;</span>
+            </a>
+
+            {% if draft.status != 'PUBLISHED' %}
+                <button type="button" @click="approveModalOpen = true" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white shadow-sm flex items-center space-x-1.5 transition cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{% if approval %}Update Approval{% else %}Sign &amp; Approve Draft{% endif %}</span>
+                </button>
+
+                <form method="POST" action="{% url 'review:approve_publish' draft.id %}" onsubmit="return confirm('Seal and publish this draft? This will issue official allotment letters to students.');" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white shadow-sm flex items-center space-x-1.5 transition cursor-pointer">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Publish Allotments</span>
+                    </button>
+                </form>
+            {% else %}
+                <span class="text-xs font-bold text-emerald-700 px-3.5 py-2 bg-emerald-50 rounded-xl border border-emerald-200">
+                    Sealed &amp; Published
+                </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Governance Status Card -->
+    {% if approval %}
+        <div class="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
+                    &check;
+                </div>
+                <div>
+                    <span class="text-xs font-bold text-emerald-900 block">Governance Gate Passed: Officially Approved by Warden</span>
+                    <p class="text-[11px] text-emerald-700">Signed off by <strong>{{ approval.warden_email }}</strong> on {{ approval.created_at|date:"M d, Y H:i" }}. Comments: "{{ approval.comments }}"</p>
+                </div>
+            </div>
+            <span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+                READY FOR PUBLICATION
+            </span>
+        </div>
+    {% else %}
+        <div class="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
+                    !
+                </div>
+                <div>
+                    <span class="text-xs font-bold text-amber-900 block">Governance Action Required: Pending Warden Review &amp; Sign-Off</span>
+                    <p class="text-[11px] text-amber-700">Under Rule P03, this draft cannot be released to students until a warden reviews bed placements and records approval.</p>
+                </div>
+            </div>
+            <button type="button" @click="approveModalOpen = true" class="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition cursor-pointer self-start sm:self-auto">
+                Review &amp; Sign Off
+            </button>
+        </div>
+    {% endif %}
+
+    <!-- Metrics Bar -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <span class="text-slate-400 text-xs font-medium uppercase tracking-wider block">Assigned in Scope</span>
+            <div class="text-2xl font-bold text-slate-900 mt-1 font-mono">{{ total_assigned_scope }}</div>
+            <span class="text-[11px] text-slate-500 mt-0.5 block">Candidates with room assignments</span>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <span class="text-slate-400 text-xs font-medium uppercase tracking-wider block">Vacant Beds Available</span>
+            <div class="text-2xl font-bold text-emerald-700 mt-1 font-mono">{{ total_vacant_scope }}</div>
+            <span class="text-[11px] text-slate-500 mt-0.5 block">Eligible for manual override</span>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <span class="text-slate-400 text-xs font-medium uppercase tracking-wider block">Manual Overrides</span>
+            <div class="text-2xl font-bold text-amber-700 mt-1 font-mono">{{ overrides_count }}</div>
+            <span class="text-[11px] text-slate-500 mt-0.5 block">Audited warden adjustments</span>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <span class="text-slate-400 text-xs font-medium uppercase tracking-wider block">Approval Gate</span>
+            <div class="text-lg font-bold mt-2
+                {% if approval %}text-emerald-700{% else %}text-amber-600{% endif %}">
+                {% if approval %}CERTIFIED &amp; APPROVED{% else %}PENDING SIGN-OFF{% endif %}
+            </div>
+            <span class="text-[11px] text-slate-500 mt-0.5 block">Recorded human sign-off</span>
+        </div>
+    </div>
+
+    <!-- Filter & Search Console -->
+    <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+        <form method="GET" class="flex flex-col md:flex-row items-center gap-3">
+            <div class="relative flex-1 w-full">
+                <input type="text" name="q" value="{{ query }}" placeholder="Search by student name, roll ID, room number, or bed identifier..." class="w-full text-xs pl-9 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden">
+                <svg class="w-4 h-4 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </div>
+
+            {% if not is_scoped_warden %}
+                <div class="w-full md:w-56">
+                    <select name="hostel" class="w-full text-xs py-2.5 px-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden">
+                        <option value="">All Hostels (Campus)</option>
+                        {% for h in all_hostels %}
+                            <option value="{{ h.id }}" {% if hostel_filter == h.id|stringformat:"s" %}selected{% endif %}>{{ h.name }} ({{ h.code }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            {% endif %}
+
+            <div class="w-full md:w-40">
+                <select name="floor" class="w-full text-xs py-2.5 px-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden">
+                    <option value="">All Floors</option>
+                    <option value="0" {% if floor_filter == "0" %}selected{% endif %}>Ground Floor (Accessible)</option>
+                    <option value="1" {% if floor_filter == "1" %}selected{% endif %}>1st Floor</option>
+                    <option value="2" {% if floor_filter == "2" %}selected{% endif %}>2nd Floor</option>
+                    <option value="3" {% if floor_filter == "3" %}selected{% endif %}>3rd Floor</option>
+                </select>
+            </div>
+
+            <div class="flex items-center space-x-2 w-full md:w-auto">
+                <button type="submit" class="w-full md:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold shadow-xs transition">
+                    Filter
+                </button>
+                {% if query or hostel_filter or floor_filter %}
+                    <a href="{% url 'review:draft_review' draft.id %}" class="px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">
+                        Reset
+                    </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Assignments Review Table -->
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900">Resident Bed Allocations</h3>
+                <p class="text-xs text-slate-500">Showing {{ assignments|length }} allocated candidate(s) in review scope</p>
+            </div>
+            <span class="text-xs text-slate-400 font-mono">Draft: {{ draft.run_identifier }}</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                    <tr class="bg-slate-50/80 text-slate-500 uppercase tracking-wider text-[11px] font-bold border-b border-slate-200">
+                        <th class="py-3.5 px-4">Student Candidate</th>
+                        <th class="py-3.5 px-4">Allocated Residence</th>
+                        <th class="py-3.5 px-4">Room &amp; Bed Specs</th>
+                        <th class="py-3.5 px-4">Decision Context</th>
+                        <th class="py-3.5 px-4 text-right">Warden Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-slate-700">
+                    {% for item in assignments %}
+                        <tr class="hover:bg-indigo-50/20 transition">
+                            <!-- Student Info -->
+                            <td class="py-3.5 px-4">
+                                <div class="font-bold text-slate-900 text-sm">{{ item.application.student_name }}</div>
+                                <div class="font-mono text-slate-500 text-[11px] mt-0.5">{{ item.application.student_id }} · {{ item.application.programme }}</div>
+                                <div class="flex items-center space-x-1.5 mt-1.5">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold
+                                        {% if item.application.gender == 'M' %}bg-blue-50 text-blue-700 border border-blue-200
+                                        {% else %}bg-rose-50 text-rose-700 border border-rose-200{% endif %}">
+                                        {{ item.application.get_gender_display }}
+                                    </span>
+                                    {% if item.application.requires_accessible_room %}
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                            ♿ Accessible Req
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+
+                            <!-- Residence Info -->
+                            <td class="py-3.5 px-4">
+                                <div class="font-bold text-slate-900">{{ item.bed.room.block.hostel.name }}</div>
+                                <div class="text-slate-500 text-[11px]">{{ item.bed.room.block.name }} · Floor {{ item.bed.room.floor.floor_number|default:"0" }}</div>
+                                <div class="text-[11px] text-slate-400 mt-1">Hostel Code: {{ item.bed.room.block.hostel.code }}</div>
+                            </td>
+
+                            <!-- Room & Bed -->
+                            <td class="py-3.5 px-4">
+                                <div class="flex items-center space-x-2">
+                                    <span class="font-bold text-slate-900 text-sm">Room {{ item.bed.room.room_number }}</span>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                                        Bed {{ item.bed.bed_identifier }}
+                                    </span>
+                                </div>
+                                <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                                        {{ item.bed.room.get_room_type_display }}
+                                    </span>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-medium
+                                        {% if item.bed.room.cooling_type == 'AC' %}bg-blue-50 text-blue-700
+                                        {% elif item.bed.room.cooling_type == 'COOLER' %}bg-cyan-50 text-cyan-700
+                                        {% else %}bg-slate-100 text-slate-600{% endif %}">
+                                        {{ item.bed.room.get_cooling_type_display }}
+                                    </span>
+                                    {% if item.bed.is_accessible %}
+                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold text-emerald-700 bg-emerald-50">
+                                            Ground Floor
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+
+                            <!-- Context / Synergy -->
+                            <td class="py-3.5 px-4">
+                                {% if item.preference_rank_honoured %}
+                                    <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                        Rank #{{ item.preference_rank_honoured }} Choice
+                                    </span>
+                                {% else %}
+                                    <span class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600">
+                                        Fallback Match
+                                    </span>
+                                {% endif %}
+
+                                {% if item.compatibility_score %}
+                                    <div class="text-[11px] text-slate-500 mt-1.5">
+                                        Synergy: <strong class="text-indigo-700 font-mono">{{ item.compatibility_score|floatformat:2 }}</strong>
+                                    </div>
+                                {% endif %}
+
+                                {% if item.overrides.exists %}
+                                    <div class="mt-1.5">
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                            Overridden by Warden
+                                        </span>
+                                    </div>
+                                {% endif %}
+                            </td>
+
+                            <!-- Actions -->
+                            <td class="py-3.5 px-4 text-right">
+                                {% if draft.status != 'PUBLISHED' %}
+                                    <div class="flex items-center justify-end space-x-2">
+                                        <button type="button"
+                                            @click="openReassign('{{ item.id }}', '{{ item.application.student_name|escapejs }}', '{{ item.application.student_id|escapejs }}', '{{ item.application.gender }}', '{{ item.application.requires_accessible_room }}', '{{ item.bed.room.block.hostel.name }} Room {{ item.bed.room.room_number }} (Bed {{ item.bed.bed_identifier }})')"
+                                            class="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition cursor-pointer">
+                                            Reassign
+                                        </button>
+
+                                        <button type="button"
+                                            @click="openSwap('{{ item.id }}', '{{ item.application.student_name|escapejs }}', '{{ item.application.student_id|escapejs }}', '{{ item.application.gender }}', '{{ item.application.requires_accessible_room }}', '{{ item.bed.room.block.hostel.name }} Room {{ item.bed.room.room_number }} (Bed {{ item.bed.bed_identifier }})')"
+                                            class="px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition cursor-pointer">
+                                            Swap
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <span class="text-slate-400 text-xs italic">Sealed</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5" class="py-12 text-center text-slate-400">
+                                No allocations found matching current filters.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- MODAL 1: REASSIGN BED TO VACANT BED -->
+    <div x-show="reassignModalOpen" x-cloak class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all" @click.away="reassignModalOpen = false">
+            <form method="POST" action="{% url 'review:apply_override' draft.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="assignment_id" :value="selectedAssignmentId">
+
+                <div class="p-6 space-y-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                            &harr;
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-slate-900">Manual Bed Reassignment</h3>
+                            <p class="text-xs text-slate-500">Reassign resident to an unoccupied bed within approved scope</p>
+                        </div>
+                    </div>
+
+                    <!-- Selected Student Card -->
+                    <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-900" x-text="selectedStudentName"></span>
+                            <span class="font-mono text-slate-500" x-text="selectedStudentRoll"></span>
+                        </div>
+                        <div class="text-slate-600">
+                            Current Bed: <strong class="text-slate-800" x-text="selectedCurrentBed"></strong>
+                        </div>
+                        <template x-if="selectedStudentAccessible">
+                            <span class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                ♿ Requires Ground Floor Accessible Bed
+                            </span>
+                        </template>
+                    </div>
+
+                    <!-- Target Vacant Bed Select with Gender Constraint -->
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-bold text-slate-700">Select Target Unoccupied Bed <span class="text-rose-500">*</span></label>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border" 
+                                  :class="selectedStudentGender === 'F' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-blue-50 text-blue-700 border-blue-200'"
+                                  x-text="`Target: ${selectedGenderLabel}`"></span>
+                        </div>
+
+                        <template x-if="matchingVacantBeds.length > 0">
+                            <div>
+                                <select name="new_bed_id" x-model="targetBedId" required class="w-full text-xs p-2.5 rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden">
+                                    <option value="" x-text="`-- Choose Vacant Bed (${matchingVacantBeds.length} Available for ${selectedStudentGender === 'F' ? 'Female' : 'Male'}) --`"></option>
+                                    <template x-for="vb in matchingVacantBeds" :key="vb.id">
+                                        <option :value="vb.id" x-text="vb.label"></option>
+                                    </template>
+                                </select>
+                                <p class="text-[10px] text-slate-400 mt-1">Strict gender constraint applied: only <strong class="text-slate-600" x-text="selectedStudentGender === 'F' ? 'Women\'s &amp; Co-Ed' : 'Men\'s &amp; Co-Ed'"></strong> residential inventory is shown.</p>
+                            </div>
+                        </template>
+
+                        <template x-if="matchingVacantBeds.length === 0">
+                            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
+                                <div class="font-bold flex items-center space-x-1.5">
+                                    <span>⚠️</span>
+                                    <span>No Vacant Beds Matching Gender Policy</span>
+                                </div>
+                                <p class="text-[11px] text-amber-700">
+                                    There are currently 0 vacant beds in <span class="font-bold" x-text="selectedStudentGender === 'F' ? 'Women\'s Hostels' : 'Men\'s Hostels'"></span>. Cross-gender reassignment is strictly prohibited.
+                                </p>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Mandatory Justification Reason -->
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-bold text-slate-700">
+                            Mandatory Justification Reason <span class="text-rose-500">*</span>
+                        </label>
+                        <textarea name="reason" x-model="reassignReason" required rows="3" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden" placeholder="e.g. Ground floor mobility accommodation verified by campus medical officer."></textarea>
+                        <p class="text-[11px] text-slate-400">Recorded permanently in the immutable audit log and explainable allocation record.</p>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end space-x-2">
+                    <button type="button" @click="reassignModalOpen = false" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer">
+                        Cancel
+                    </button>
+                    <button type="submit" :disabled="matchingVacantBeds.length === 0 || !targetBedId" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition cursor-pointer">
+                        Apply Reassignment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: TWO-WAY RESIDENT SWAP -->
+    <div x-show="swapModalOpen" x-cloak class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all" @click.away="swapModalOpen = false">
+            <form method="POST" action="{% url 'review:swap_residents' draft.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="assignment_a_id" :value="selectedAssignmentId">
+
+                <div class="p-6 space-y-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                            &rlarr;
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-slate-900">Two-Way Resident Swap</h3>
+                            <p class="text-xs text-slate-500">Atomically exchange beds between two assigned candidates</p>
+                        </div>
+                    </div>
+
+                    <!-- Resident A -->
+                    <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Student A (Current)</span>
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-900" x-text="selectedStudentName"></span>
+                            <span class="font-mono text-slate-500" x-text="selectedStudentRoll"></span>
+                        </div>
+                        <div class="text-slate-600">
+                            Current Bed: <strong class="text-slate-800" x-text="selectedCurrentBed"></strong>
+                        </div>
+                    </div>
+
+                    <!-- Resident B Select with Same-Gender Constraint -->
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-bold text-slate-700">Swap With Student B <span class="text-rose-500">*</span></label>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border" 
+                                  :class="selectedStudentGender === 'F' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-blue-50 text-blue-700 border-blue-200'"
+                                  x-text="`Constraint: ${selectedGenderLabel} Candidates Only`"></span>
+                        </div>
+
+                        <template x-if="matchingSwapCandidates.length > 0">
+                            <div>
+                                <select name="assignment_b_id" x-model="swapTargetAssignmentId" required class="w-full text-xs p-2.5 rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-purple-500 focus:outline-hidden">
+                                    <option value="" x-text="`-- Choose Candidate to Swap With (${matchingSwapCandidates.length} Same-Gender Candidates) --`"></option>
+                                    <template x-for="c in matchingSwapCandidates" :key="c.id">
+                                        <option :value="c.id" x-text="c.label"></option>
+                                    </template>
+                                </select>
+                                <p class="text-[10px] text-slate-400 mt-1">Cross-gender resident swaps are blocked to enforce institutional single-gender hostel policies.</p>
+                            </div>
+                        </template>
+
+                        <template x-if="matchingSwapCandidates.length === 0">
+                            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
+                                <span class="font-bold">⚠️ No Eligible Same-Gender Candidates Available for Swap.</span>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Mandatory Justification Reason -->
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-bold text-slate-700">
+                            Mandatory Justification Reason <span class="text-rose-500">*</span>
+                        </label>
+                        <textarea name="reason" x-model="swapReason" required rows="3" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-purple-500 focus:outline-hidden" placeholder="e.g. Mutual consent room exchange requested by both students; lifestyle profiles aligned."></textarea>
+                        <p class="text-[11px] text-slate-400">Hard constraints (gender isolation and accessibility) will be strictly verified for both students.</p>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end space-x-2">
+                    <button type="button" @click="swapModalOpen = false" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer">
+                        Cancel
+                    </button>
+                    <button type="submit" :disabled="matchingSwapCandidates.length === 0 || !swapTargetAssignmentId" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition cursor-pointer">
+                        Execute Swap
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 3: WARDEN SIGN-OFF & APPROVAL -->
+    <div x-show="approveModalOpen" x-cloak class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all" @click.away="approveModalOpen = false">
+            <form method="POST" action="{% url 'review:approve_draft' draft.id %}">
+                {% csrf_token %}
+                <div class="p-6 space-y-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                            &check;
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-slate-900">Warden Approval Sign-Off</h3>
+                            <p class="text-xs text-slate-500">Governance Gate Certification (P03 Requirement)</p>
+                        </div>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-xs text-indigo-900 leading-relaxed">
+                        <strong class="font-bold">Human Approval Gate:</strong> By signing off, you certify that residential inventory constraints, mutual roommate pairings, and accessibility requirements have been inspected and verified.
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-bold text-slate-700">Warden Audit Comments</label>
+                        <textarea name="comments" x-model="approveComments" rows="3" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden" placeholder="e.g. Conducted room vacancy audit; mutual roommate pairs verified. Approved for official release.">{{ approval.comments|default:"" }}</textarea>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end space-x-2">
+                    <button type="button" @click="approveModalOpen = false" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition cursor-pointer">
+                        Record Human Sign-Off
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
