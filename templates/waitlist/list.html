@@ -1,0 +1,362 @@
+{% extends 'base.html' %}
+
+{% block title %}Waiting List Management (M8) · Dynamic Vacancy Promotions{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{
+    manualOfferModalOpen: false,
+    selectedEntryId: '',
+    selectedStudentName: '',
+    selectedStudentRoll: '',
+    selectedGender: '',
+    selectedGenderLabel: '',
+    selectedAccessible: false,
+    selectedBedId: '',
+    offerReason: '',
+    allAvailableBeds: [
+        {% for b in available_beds %}
+        {
+            id: '{{ b.id }}',
+            hostelName: '{{ b.room.block.hostel.name|escapejs }}',
+            hostelCode: '{{ b.room.block.hostel.code|escapejs }}',
+            hostelGender: '{{ b.room.block.hostel.gender_type }}',
+            roomNumber: '{{ b.room.room_number|escapejs }}',
+            bedIdentifier: '{{ b.bed_identifier|escapejs }}',
+            roomType: '{{ b.room.get_room_type_display|escapejs }}',
+            cooling: '{{ b.room.get_cooling_type_display|escapejs }}',
+            isAccessible: {{ b.is_accessible|yesno:'true,false' }},
+            label: '{{ b.room.block.hostel.name|escapejs }} ({{ b.room.block.hostel.code }}) · Room {{ b.room.room_number|escapejs }} (Bed {{ b.bed_identifier|escapejs }}) - {{ b.room.get_room_type_display|escapejs }} [{{ b.room.get_cooling_type_display|escapejs }}]{% if b.is_accessible %} [♿ Accessible]{% endif %}'
+        },
+        {% endfor %}
+    ],
+    matchingBeds: [],
+
+    openManualOffer(entryId, name, roll, gender, accessible) {
+        this.selectedEntryId = entryId;
+        this.selectedStudentName = name;
+        this.selectedStudentRoll = roll;
+
+        const raw = (gender || '').trim().toUpperCase();
+        this.selectedGender = (raw === 'F' || raw === 'FEMALE') ? 'F' : ((raw === 'O' || raw === 'OTHER') ? 'O' : 'M');
+        this.selectedGenderLabel = this.selectedGender === 'F' ? 'Female (Women\'s Hostel)' : (this.selectedGender === 'O' ? 'Other (Co-Ed Hostel)' : 'Male (Men\'s Hostel)');
+        this.selectedAccessible = accessible === 'True' || accessible === true;
+        this.selectedBedId = '';
+        this.offerReason = '';
+
+        // Strictly enforce GENDER POLICY: only beds in matching or Co-Ed hostels
+        const isMale = (this.selectedGender === 'M');
+        const isFemale = (this.selectedGender === 'F');
+        this.matchingBeds = this.allAvailableBeds.filter(b => {
+            let matchGender = false;
+            if (b.hostelGender === 'C') {
+                matchGender = true;
+            } else if (isMale) {
+                matchGender = (b.hostelGender === 'M');
+            } else if (isFemale) {
+                matchGender = (b.hostelGender === 'W' || b.hostelGender === 'F');
+            } else {
+                matchGender = (b.hostelGender === 'C');
+            }
+            if (!matchGender) return false;
+
+            // Accessibility constraint
+            if (this.selectedAccessible && !b.isAccessible) return false;
+
+            return true;
+        });
+
+        this.manualOfferModalOpen = true;
+    }
+}">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div>
+            <div class="flex items-center space-x-2 text-xs font-semibold text-amber-700 mb-1">
+                <span>Waitlist Module (M8)</span>
+                <span class="text-slate-300">•</span>
+                <span>Dynamic Vacancy Promotion Solver</span>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Active Waiting List &amp; Vacancy Promotions</h1>
+            <p class="text-xs text-slate-500 mt-1">
+                Strictly ordered priority queue. Automatically matches newly opened bed vacancies to eligible candidates respecting gender and accessibility constraints with a 48-hour acceptance window.
+            </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+            {% if is_student %}
+                <a href="{% url 'waitlist:my_status' %}" class="px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-bold transition inline-flex items-center space-x-1.5">
+                    <span>My Personal Waitlist Rank &rarr;</span>
+                </a>
+            {% endif %}
+
+            {% if is_warden or is_admin %}
+                <form method="POST" action="{% url 'waitlist:auto_promote' %}" onsubmit="return confirm('Execute automatic vacancy promotion? This will offer unoccupied beds to the top eligible candidates in queue.');" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="cycle_id" value="{{ selected_cycle.id }}">
+                    <button type="submit" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white shadow-sm flex items-center space-x-1.5 transition cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span>Auto-Promote Next Vacancies</span>
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Metrics Bar -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <span class="text-slate-400 text-xs font-medium uppercase tracking-wider block">Waiting in Queue</span>
+            <div class="text-2xl font-bold text-amber-700 mt-1 font-mono">{{ active_count }}</div>
+            <span class="text-[11px] text-slate-500 mt-0.5 block">Candidates awaiting room vacancy</span>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <span class="text-slate-400 text-xs font-medium uppercase tracking-wider block">Vacant Beds Available</span>
+            <div class="text-2xl font-bold text-emerald-700 mt-1 font-mono">{{ total_vacant_beds }}</div>
+            <span class="text-[11px] text-slate-500 mt-0.5 block">Eligible for promotion matching</span>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <span class="text-slate-400 text-xs font-medium uppercase tracking-wider block">Active 48h Offers</span>
+            <div class="text-2xl font-bold text-indigo-700 mt-1 font-mono">{{ offered_count }}</div>
+            <span class="text-[11px] text-slate-500 mt-0.5 block">Pending student acceptance</span>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <span class="text-slate-400 text-xs font-medium uppercase tracking-wider block">Confirmed Promotions</span>
+            <div class="text-2xl font-bold text-slate-900 mt-1 font-mono">{{ accepted_count }}</div>
+            <span class="text-[11px] text-slate-500 mt-0.5 block">Candidates successfully placed</span>
+        </div>
+    </div>
+
+    <!-- Cycle Selector & Filter Bar -->
+    <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+        <form method="GET" class="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+            <div class="w-full sm:w-64">
+                <select name="cycle_id" onchange="this.form.submit()" class="w-full text-xs py-2 px-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden">
+                    {% for c in cycles %}
+                        <option value="{{ c.id }}" {% if selected_cycle.id == c.id %}selected{% endif %}>{{ c.name }} ({{ c.code }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Status Filter Pills -->
+            <div class="flex items-center space-x-1.5 text-xs">
+                <a href="?cycle_id={{ selected_cycle.id }}" class="px-3 py-1.5 rounded-lg border {% if not status_filter %}bg-slate-800 text-white border-slate-800{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %} font-medium transition">
+                    All ({{ entries|length }})
+                </a>
+                <a href="?cycle_id={{ selected_cycle.id }}&status=ACTIVE" class="px-3 py-1.5 rounded-lg border {% if status_filter == 'ACTIVE' %}bg-amber-600 text-white border-amber-600{% else %}bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100{% endif %} font-medium transition">
+                    Waiting ({{ active_count }})
+                </a>
+                <a href="?cycle_id={{ selected_cycle.id }}&status=OFFERED" class="px-3 py-1.5 rounded-lg border {% if status_filter == 'OFFERED' %}bg-indigo-600 text-white border-indigo-600{% else %}bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100{% endif %} font-medium transition">
+                    Offered ({{ offered_count }})
+                </a>
+                <a href="?cycle_id={{ selected_cycle.id }}&status=ACCEPTED" class="px-3 py-1.5 rounded-lg border {% if status_filter == 'ACCEPTED' %}bg-emerald-600 text-white border-emerald-600{% else %}bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100{% endif %} font-medium transition">
+                    Accepted ({{ accepted_count }})
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Active Queue Table -->
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900">Waitlist Candidates Queue</h3>
+                <p class="text-xs text-slate-500">Showing candidates ordered strictly by priority rank</p>
+            </div>
+            <span class="text-xs text-slate-400 font-mono">{{ selected_cycle.code }}</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                    <tr class="bg-slate-50/80 text-slate-500 uppercase tracking-wider text-[11px] font-bold border-b border-slate-200">
+                        <th class="py-3.5 px-4">Queue Rank</th>
+                        <th class="py-3.5 px-4">Student Candidate</th>
+                        <th class="py-3.5 px-4">Gender &amp; Mobility</th>
+                        <th class="py-3.5 px-4">Queue Status</th>
+                        <th class="py-3.5 px-4">Promotion / Bed Details</th>
+                        {% if is_warden or is_admin %}
+                            <th class="py-3.5 px-4 text-right">Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-slate-700">
+                    {% for entry in entries %}
+                        <tr class="hover:bg-slate-50/70 transition {% if entry.status == 'OFFERED' %}bg-indigo-50/30{% endif %}">
+                            <!-- Priority Order -->
+                            <td class="py-3.5 px-4 font-mono font-bold text-base {% if entry.status == 'ACTIVE' %}text-amber-700{% elif entry.status == 'OFFERED' %}text-indigo-700{% elif entry.status == 'ACCEPTED' %}text-emerald-700{% else %}text-slate-400{% endif %}">
+                                #{{ entry.priority_order }}
+                            </td>
+
+                            <!-- Student Info -->
+                            <td class="py-3.5 px-4">
+                                <div class="font-bold text-slate-900 text-sm">{{ entry.application.student_name }}</div>
+                                <div class="font-mono text-slate-500 text-[11px] mt-0.5">{{ entry.application.student_id }} · {{ entry.application.programme }}</div>
+                            </td>
+
+                            <!-- Gender & Mobility -->
+                            <td class="py-3.5 px-4">
+                                <div class="flex items-center space-x-1.5">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold
+                                        {% if entry.application.gender == 'M' %}bg-blue-50 text-blue-700 border border-blue-200
+                                        {% else %}bg-rose-50 text-rose-700 border border-rose-200{% endif %}">
+                                        {{ entry.application.get_gender_display }}
+                                    </span>
+                                    {% if entry.application.requires_accessible_room %}
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                            ♿ Accessible
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+
+                            <!-- Status -->
+                            <td class="py-3.5 px-4">
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold
+                                    {% if entry.status == 'OFFERED' %}bg-indigo-100 text-indigo-800 border border-indigo-200
+                                    {% elif entry.status == 'ACTIVE' %}bg-amber-100 text-amber-800 border border-amber-200
+                                    {% elif entry.status == 'ACCEPTED' %}bg-emerald-100 text-emerald-800 border border-emerald-200
+                                    {% elif entry.status == 'DECLINED' %}bg-rose-100 text-rose-800 border border-rose-200
+                                    {% else %}bg-slate-100 text-slate-700{% endif %}">
+                                    {{ entry.get_status_display }}
+                                </span>
+                            </td>
+
+                            <!-- Offer Details -->
+                            <td class="py-3.5 px-4">
+                                {% if entry.offered_bed %}
+                                    <div class="space-y-0.5">
+                                        <div class="font-bold text-slate-900 text-xs">
+                                            {{ entry.offered_bed.room.block.hostel.name }} · Room {{ entry.offered_bed.room.room_number }} (Bed {{ entry.offered_bed.bed_identifier }})
+                                        </div>
+                                        <div class="text-[11px] text-slate-500">
+                                            {{ entry.offered_bed.room.get_room_type_display }} [{{ entry.offered_bed.room.get_cooling_type_display }}]
+                                        </div>
+                                        {% if entry.status == 'OFFERED' %}
+                                            <div class="text-[10px] text-indigo-600 font-bold mt-1">
+                                                Expires in: {{ entry.time_remaining_hours }}h (Window: 48h)
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% elif entry.status == 'ACTIVE' %}
+                                    <span class="text-slate-400 text-xs italic">Next in line for matching bed</span>
+                                {% else %}
+                                    <span class="text-slate-400 text-xs">&mdash;</span>
+                                {% endif %}
+                            </td>
+
+                            <!-- Actions -->
+                            {% if is_warden or is_admin %}
+                                <td class="py-3.5 px-4 text-right">
+                                    {% if entry.status == 'ACTIVE' %}
+                                        <button type="button"
+                                            @click="openManualOffer('{{ entry.id }}', '{{ entry.application.student_name|escapejs }}', '{{ entry.application.student_id|escapejs }}', '{{ entry.application.gender }}', '{{ entry.application.requires_accessible_room }}')"
+                                            class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition cursor-pointer">
+                                            Offer Bed
+                                        </button>
+                                    {% elif entry.status == 'OFFERED' %}
+                                        <span class="text-xs text-indigo-600 font-bold">Offer Pending</span>
+                                    {% else %}
+                                        <span class="text-slate-400 text-xs">&mdash;</span>
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="6" class="py-12 text-center text-slate-400">
+                                No candidates currently in the waiting list for this cycle.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- MODAL: MANUAL BED OFFER -->
+    <div x-show="manualOfferModalOpen" x-cloak class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all" @click.away="manualOfferModalOpen = false">
+            <form method="POST" :action="`/waitlist/offers/${selectedEntryId}/manual-offer/`">
+                {% csrf_token %}
+                <div class="p-6 space-y-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                            &check;
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-slate-900">Manual Bed Allotment Offer</h3>
+                            <p class="text-xs text-slate-500">Offer a vacant bed to waitlisted candidate with 48h acceptance window</p>
+                        </div>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-900" x-text="selectedStudentName"></span>
+                            <span class="font-mono text-slate-500" x-text="selectedStudentRoll"></span>
+                        </div>
+                        <template x-if="selectedAccessible">
+                            <span class="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                ♿ Requires Ground Floor Accessible Bed
+                            </span>
+                        </template>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-bold text-slate-700">Select Vacant Bed to Offer <span class="text-rose-500">*</span></label>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border" 
+                                  :class="selectedGender === 'F' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-blue-50 text-blue-700 border-blue-200'"
+                                  x-text="`Target: ${selectedGenderLabel}`"></span>
+                        </div>
+
+                        <!-- When matching beds exist -->
+                        <template x-if="matchingBeds.length > 0">
+                            <div>
+                                <select name="bed_id" x-model="selectedBedId" required class="w-full text-xs p-2.5 rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden">
+                                    <option value="" x-text="`-- Choose Vacant Bed (${matchingBeds.length} Available for ${selectedGender === 'F' ? 'Female' : 'Male'}) --`"></option>
+                                    <template x-for="b in matchingBeds" :key="b.id">
+                                        <option :value="b.id" x-text="b.label"></option>
+                                    </template>
+                                </select>
+                                <p class="text-[10px] text-slate-400 mt-1">Strict gender constraint applied: only <strong class="text-slate-600" x-text="selectedGender === 'F' ? 'Women\'s &amp; Co-Ed' : 'Men\'s &amp; Co-Ed'"></strong> residential inventory is shown.</p>
+                            </div>
+                        </template>
+
+                        <!-- When NO matching beds exist for this gender -->
+                        <template x-if="matchingBeds.length === 0">
+                            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
+                                <div class="font-bold flex items-center space-x-1.5">
+                                    <span>⚠️</span>
+                                    <span>No Vacant Beds Matching Gender Policy</span>
+                                </div>
+                                <p class="text-[11px] text-amber-700">
+                                    There are currently 0 vacant beds in <span class="font-bold" x-text="selectedGender === 'F' ? 'Girls / Women\'s Hostels' : 'Boys / Men\'s Hostels'"></span>. Cross-gender bed allotment is strictly prohibited.
+                                </p>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-bold text-slate-700">Warden Justification / Note</label>
+                        <textarea name="reason" x-model="offerReason" rows="2" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden" placeholder="e.g. Vacancy due to student withdrawal; offered to candidate in order."></textarea>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end space-x-2">
+                    <button type="button" @click="manualOfferModalOpen = false" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer">
+                        Cancel
+                    </button>
+                    <button type="submit" :disabled="matchingBeds.length === 0 || !selectedBedId" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition cursor-pointer">
+                        Dispatch Bed Offer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
