@@ -17,9 +17,9 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 SECURE_HSTS_PRELOAD = False
 X_FRAME_OPTIONS = "DENY"
 
-# Cache backed by Redis (or in-memory fallback if REDIS_URL is not set)
+# Cache: Only use Redis if an explicit, non-local URL is configured; otherwise use ultra-fast LocMemCache
 redis_url = env("REDIS_URL", default="").strip()
-if redis_url:
+if redis_url and not redis_url.startswith("redis://localhost") and not redis_url.startswith("redis://127.0.0.1"):
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
@@ -33,3 +33,7 @@ else:
             "LOCATION": "prod-cache-fallback",
         }
     }
+
+# WhiteNoise compressed static files storage
+STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
+

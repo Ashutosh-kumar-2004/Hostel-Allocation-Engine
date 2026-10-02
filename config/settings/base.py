@@ -27,9 +27,9 @@ env = environ.Env(
     TURSO_DATABASE_URL=(str, ""),
     TURSO_AUTH_TOKEN=(str, ""),
     DATABASE_URL=(str, f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
-    REDIS_URL=(str, "redis://localhost:6379/0"),
-    CELERY_BROKER_URL=(str, "redis://localhost:6379/1"),
-    CELERY_RESULT_BACKEND=(str, "redis://localhost:6379/2"),
+    REDIS_URL=(str, ""),
+    CELERY_BROKER_URL=(str, ""),
+    CELERY_RESULT_BACKEND=(str, ""),
     DEFAULT_INSTITUTION_ID=(str, "inst_default"),
 )
 
@@ -85,7 +85,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "apps.core.middleware.AutoSeedMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
