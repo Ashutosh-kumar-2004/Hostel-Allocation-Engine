@@ -9,13 +9,14 @@ def dashboard_view(request):
     Renders the unified operational dashboard for Hostel Allocation.
     Displays live cycle status, quick stats, active role indicators, and system metrics.
     """
+    bed_stats = Bed.objects.aggregate(
+        total_beds=Count("id"),
+        available_beds=Count("id", filter=Q(status="AVAILABLE")),
+        occupied_beds=Count("id", filter=Q(status="OCCUPIED")),
+        reserved_beds=Count("id", filter=Q(status="RESERVED")),
+        maintenance_beds=Count("id", filter=Q(status="MAINTENANCE")),
+    )
     total_hostels = Hostel.objects.filter(is_active=True).count()
-    total_beds = Bed.objects.count()
-    available_beds = Bed.objects.filter(status="AVAILABLE").count()
-    occupied_beds = Bed.objects.filter(status="OCCUPIED").count()
-    reserved_beds = Bed.objects.filter(status="RESERVED").count()
-    maintenance_beds = Bed.objects.filter(status="MAINTENANCE").count()
-    
     total_applications = Application.objects.count()
     pending_room_changes = RoomChangeRequest.objects.filter(status="PENDING").count()
     drafts_count = AllocationDraft.objects.count()
@@ -28,11 +29,11 @@ def dashboard_view(request):
         "current_cycle": current_cycle.name if current_cycle else "Academic Year 2026-2027 (Autumn Allotment)",
         "stats": {
             "total_hostels": total_hostels,
-            "total_beds": total_beds,
-            "available_beds": available_beds,
-            "occupied_beds": occupied_beds,
-            "reserved_beds": reserved_beds,
-            "maintenance_beds": maintenance_beds,
+            "total_beds": bed_stats.get("total_beds") or 0,
+            "available_beds": bed_stats.get("available_beds") or 0,
+            "occupied_beds": bed_stats.get("occupied_beds") or 0,
+            "reserved_beds": bed_stats.get("reserved_beds") or 0,
+            "maintenance_beds": bed_stats.get("maintenance_beds") or 0,
             "pending_applications": total_applications,
             "draft_allocations": drafts_count,
             "pending_room_changes": pending_room_changes,
