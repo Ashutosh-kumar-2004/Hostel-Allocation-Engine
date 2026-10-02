@@ -16,6 +16,33 @@ try:
 except ImportError:
     pass
 
+try:
+    import django_libsql.base
+    _orig_py_value_to_turso_type = django_libsql.base._py_value_to_turso_type
+    def _patched_py_value_to_turso_type(value):
+        res = _orig_py_value_to_turso_type(value)
+        if isinstance(res, dict) and res.get("type") == "real":
+            res["type"] = "float"
+        return res
+    django_libsql.base._py_value_to_turso_type = _patched_py_value_to_turso_type
+
+    _orig_turso_value_to_py = django_libsql.base._turso_value_to_py
+    def _patched_turso_value_to_py(cell):
+        if isinstance(cell, dict) and cell.get("type") == "float":
+            cell = dict(cell, type="real")
+        return _orig_turso_value_to_py(cell)
+    django_libsql.base._turso_value_to_py = _patched_turso_value_to_py
+
+    import django_libsql.operations
+    def _safe_last_executed_query(self, cursor, sql, params):
+        try:
+            return sql % params if params else sql
+        except Exception:
+            return f"{sql} -- params: {params}"
+    django_libsql.operations.DatabaseOperations.last_executed_query = _safe_last_executed_query
+except ImportError:
+    pass
+
 # Base Directory: Points to root of the repo (where manage.py resides)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
