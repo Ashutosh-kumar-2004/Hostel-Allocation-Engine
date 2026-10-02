@@ -12,12 +12,29 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterUniqueTogether(
-            name='waitlistentry',
-            unique_together=set(),
+        # SQLite / libSQL does not report named inline unique constraints during introspection,
+        # which causes alter_unique_together to fail with ValueError: Found wrong number (0) of constraints.
+        # We separate state and database operations to safely update Django's model state.
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AlterUniqueTogether(
+                    name='waitlistentry',
+                    unique_together=set(),
+                ),
+            ],
+            database_operations=[
+                migrations.RunSQL(
+                    sql="DROP INDEX IF EXISTS waitlist_waitlistentry_cycle_id_priority_order_uniq;",
+                    reverse_sql="",
+                ),
+            ],
         ),
         migrations.AddConstraint(
             model_name='waitlistentry',
-            constraint=models.UniqueConstraint(condition=models.Q(('status__in', ['ACTIVE', 'OFFERED'])), fields=('cycle', 'priority_order'), name='unique_active_priority_per_cycle'),
+            constraint=models.UniqueConstraint(
+                condition=models.Q(('status__in', ['ACTIVE', 'OFFERED'])),
+                fields=('cycle', 'priority_order'),
+                name='unique_active_priority_per_cycle'
+            ),
         ),
     ]

@@ -10,6 +10,12 @@ import django.db.models
 if not hasattr(django.db.models, "CompositePrimaryKey"):
     django.db.models.CompositePrimaryKey = None
 
+try:
+    import django_libsql.features
+    django_libsql.features.DatabaseFeatures.can_return_columns_from_insert = False
+except ImportError:
+    pass
+
 # Base Directory: Points to root of the repo (where manage.py resides)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
