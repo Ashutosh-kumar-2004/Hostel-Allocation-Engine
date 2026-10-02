@@ -16,7 +16,16 @@ python manage.py collectstatic --noinput || true
 
 # 3. Synchronize demonstrator accounts and seed data
 echo "Ensuring demonstrator accounts and seed state..."
-python manage.py seed_sample_data || true
+python manage.py shell -c "
+from django.contrib.auth import get_user_model
+from django.core.management import call_command
+User = get_user_model()
+if not User.objects.filter(username='admin').exists() or not User.objects.filter(username='warden').exists():
+    print('[Startup] Seeding demonstrator accounts...')
+    call_command('seed_sample_data')
+else:
+    print('[Startup] Demonstrator accounts active.')
+" || true
 
 # 4. Start Server
 if [ "$ENVIRONMENT" = "development" ]; then
