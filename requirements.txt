@@ -6,6 +6,10 @@ pydantic>=2.7.0
 # Database (Turso Cloud libSQL)
 django-libsql-backend>=0.1.0
 
+# Background Tasks & Cache
+celery>=5.4.0
+redis>=5.0.4
+
 # API & Serialization
 djangorestframework>=3.15.1
 drf-spectacular>=0.27.2
