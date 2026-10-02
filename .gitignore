@@ -67,6 +67,8 @@ db.sqlite3
 db.sqlite3-journal
 /media/
 !docs/media/
+staticfiles/
+.vercel/
 
 # Node / Tailwind
 node_modules/

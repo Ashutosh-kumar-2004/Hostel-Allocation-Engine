@@ -1,1 +1,22 @@
--r requirements/prod.txt
+# Django Core
+Django>=5.0,<5.2
+django-environ>=0.11.2
+pydantic>=2.7.0
+
+# Database (Turso Cloud libSQL)
+django-libsql-backend>=0.1.0
+
+# API & Serialization
+djangorestframework>=3.15.1
+drf-spectacular>=0.27.2
+
+# Static Assets & Serving
+whitenoise>=6.6.0
+
+# Security & Cryptography
+cryptography>=42.0.5
+
+# Production Web Server & Storage
+gunicorn>=22.0.0
+django-storages[boto3]>=1.14.2
+sentry-sdk>=2.0.1
