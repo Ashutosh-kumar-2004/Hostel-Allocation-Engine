@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: hostel_redis
+    ports:
+      - "6379:6379"
+
+  web:
+    build: .
+    container_name: hostel_web
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - TURSO_DATABASE_URL=${TURSO_DATABASE_URL:-}
+      - TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN:-}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+    depends_on:
+      - redis
+
+  celery_worker:
+    build: .
+    container_name: hostel_celery_worker
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - .:/app
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - TURSO_DATABASE_URL=${TURSO_DATABASE_URL:-}
+      - TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN:-}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+    depends_on:
+      - redis
