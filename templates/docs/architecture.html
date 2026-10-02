@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+
+{% block title %}System Architecture &amp; Lifecycle Flowcharts · P03 Engine{% endblock %}
+
+{% block content %}
+<div class="space-y-8" x-data="{ activeTab: 'all' }">
+    <!-- Header -->
+    <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 mb-2">
+                    Updated Specification v2.0
+                </span>
+                <h1 class="text-2xl font-bold text-slate-900 tracking-tight">System Architecture &amp; Operational Flowcharts</h1>
+                <p class="text-sm text-slate-600 mt-1">
+                    Visual diagrams representing the 3-role governance, bed-level allocation pipeline, Warden single-hostel boundaries, and room change workflow.
+                </p>
+            </div>
+            <!-- Tab buttons -->
+            <div class="flex flex-wrap gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-medium">
+                <button @click="activeTab = 'all'" :class="activeTab === 'all' ? 'bg-white text-indigo-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'" class="px-3 py-1.5 rounded-lg transition">All Diagrams</button>
+                <button @click="activeTab = 'fig1'" :class="activeTab === 'fig1' ? 'bg-white text-indigo-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'" class="px-3 py-1.5 rounded-lg transition">Fig 1: Student</button>
+                <button @click="activeTab = 'fig2'" :class="activeTab === 'fig2' ? 'bg-white text-indigo-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'" class="px-3 py-1.5 rounded-lg transition">Fig 2: Warden</button>
+                <button @click="activeTab = 'fig3'" :class="activeTab === 'fig3' ? 'bg-white text-indigo-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'" class="px-3 py-1.5 rounded-lg transition">Fig 3: Admin</button>
+                <button @click="activeTab = 'fig4'" :class="activeTab === 'fig4' ? 'bg-white text-indigo-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'" class="px-3 py-1.5 rounded-lg transition">Fig 4: Hierarchy</button>
+                <button @click="activeTab = 'fig5'" :class="activeTab === 'fig5' ? 'bg-white text-indigo-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'" class="px-3 py-1.5 rounded-lg transition">Fig 5: Room Change</button>
+                <button @click="activeTab = 'arch'" :class="activeTab === 'arch' ? 'bg-white text-indigo-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'" class="px-3 py-1.5 rounded-lg transition">Arch &amp; ERD</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Diagram Cards Grid -->
+    <div class="space-y-8">
+        <!-- Figure 1 -->
+        <div x-show="activeTab === 'all' || activeTab === 'fig1'" class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">Figure 1 — Student Application &amp; Allocation Flow</h2>
+                    <p class="text-xs text-slate-500">Student Intake &rarr; Consent &rarr; Eligibility Check &rarr; Draft Output &rarr; Explanation Result</p>
+                </div>
+                <span class="px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">Role: Student</span>
+            </div>
+            <div class="flex flex-col lg:flex-row gap-6 items-center">
+                <div class="w-full lg:w-3/5 bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-center">
+                    <img src="/static/img/diagrams/fig1_student_flow.png" alt="Figure 1 - Student Application and Allocation Flow" class="max-h-96 w-auto object-contain rounded-lg shadow-sm">
+                </div>
+                <div class="w-full lg:w-2/5 space-y-3 text-xs text-slate-600 leading-relaxed">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Key Step 1: Intake &amp; Consented Data</span>
+                        Applicant fills student details, uploads documents, selects ranked hostel &amp; room types, and provides consent for lifestyle survey.
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Key Step 2: Policy Rule Validation</span>
+                        System verifies distance, CGPA, and disciplinary rules. Failed rules immediately flag applicant as ineligible with clear reasons.
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Key Step 3: Transparent Explanation</span>
+                        Once published, students can view their allotment letter and complete breakdown of why that specific bed was assigned.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Figure 2 -->
+        <div x-show="activeTab === 'all' || activeTab === 'fig2'" class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">Figure 2 — Warden Allocation &amp; Publication Flow</h2>
+                    <p class="text-xs text-slate-500">Draft Generation &rarr; Mandatory Review &rarr; Manual Overrides &rarr; Formal Approval Gate &rarr; Final Publication</p>
+                </div>
+                <span class="px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Role: Warden</span>
+            </div>
+            <div class="flex flex-col lg:flex-row gap-6 items-center">
+                <div class="w-full lg:w-3/5 bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-center">
+                    <img src="/static/img/diagrams/fig2_warden_flow.png" alt="Figure 2 - Warden Allocation and Publication Flow" class="max-h-96 w-auto object-contain rounded-lg shadow-sm">
+                </div>
+                <div class="w-full lg:w-2/5 space-y-3 text-xs text-slate-600 leading-relaxed">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Structural Governance Guarantee</span>
+                        The allocation engine only ever writes an <code class="bg-slate-200 px-1 py-0.5 rounded text-indigo-700">AllocationDraft</code>. Direct writing to published state is barred by database foreign-key constraints.
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Mandatory Override Justification</span>
+                        Wardens can reassign any bed on the interactive bed map, but must provide a mandatory textual explanation stored in immutable audit logs.
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Recorded Human Approval Gate</span>
+                        Publication triggers background WeasyPrint PDF generation only when a signed <code class="bg-slate-200 px-1 py-0.5 rounded text-emerald-700">WardenApproval</code> record is in place.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Figure 3 -->
+        <div x-show="activeTab === 'all' || activeTab === 'fig3'" class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">Figure 3 — System Administrator Warden Assignment Flow</h2>
+                    <p class="text-xs text-slate-500">1 Warden to 1 Hostel Assignment &amp; Reassignment with Object-Level Boundary Enforcement</p>
+                </div>
+                <span class="px-2.5 py-1 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">Role: System Admin</span>
+            </div>
+            <div class="flex flex-col lg:flex-row gap-6 items-center">
+                <div class="w-full lg:w-3/5 bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-center">
+                    <img src="/static/img/diagrams/fig3_admin_warden_assignment_flow.png" alt="Figure 3 - System Administrator Warden Assignment Flow" class="max-h-96 w-auto object-contain rounded-lg shadow-sm">
+                </div>
+                <div class="w-full lg:w-2/5 space-y-3 text-xs text-slate-600 leading-relaxed">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">1-to-1 Hostel Assignment</span>
+                        Admin assigns exactly one Warden to each hostel through <code class="bg-slate-200 px-1 py-0.5 rounded text-purple-700">WardenHostelAssignment</code>.
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Object-Level Queryset Filtering</span>
+                        Warden view permissions are checked server-side via filtered querysets (<code class="bg-slate-200 px-1 py-0.5 rounded">filter(hostel=warden.hostel)</code>), preventing URL guessing attacks.
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Reassignment Auditing</span>
+                        Admin can reassign wardens when academic terms rotate. Every change logs prior and new assignments into the audit trail.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Figure 4 -->
+        <div x-show="activeTab === 'all' || activeTab === 'fig4'" class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">Figure 4 — Hostel Inventory Hierarchy</h2>
+                    <p class="text-xs text-slate-500">Hostel &rarr; Block &rarr; Floor &rarr; Room (Cooling: AC / Cooler / None) &rarr; Bed (Final Allocation Target)</p>
+                </div>
+                <span class="px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">Inventory Data Architecture</span>
+            </div>
+            <div class="flex flex-col lg:flex-row gap-6 items-center">
+                <div class="w-full lg:w-3/5 bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-center">
+                    <img src="/static/img/diagrams/fig4_hostel_inventory_hierarchy.png" alt="Figure 4 - Hostel Inventory Hierarchy" class="max-h-96 w-auto object-contain rounded-lg shadow-sm">
+                </div>
+                <div class="w-full lg:w-2/5 space-y-3 text-xs text-slate-600 leading-relaxed">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Granular Hierarchy</span>
+                        <strong>Hostel</strong> has multiple <strong>Blocks</strong>; each Block has <strong>Floors</strong>; each Floor contains <strong>Rooms</strong>; and each Room contains <strong>Beds</strong>.
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Variable Room Capacities</span>
+                        Room capacity is dynamic and derived from the count of bed records (e.g. Room A-102 has 4 beds; Room A-103 has 6 beds) rather than a rigid table column.
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Cooling Types</span>
+                        Rooms specify cooling independently: <strong>AC</strong>, <strong>Cooler</strong>, or <strong>None</strong>.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Figure 5 -->
+        <div x-show="activeTab === 'all' || activeTab === 'fig5'" class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">Figure 5 — Room Change Request Flow</h2>
+                    <p class="text-xs text-slate-500">Student Request Submission &rarr; Warden Review &rarr; Bed Reallocation &rarr; Audit History Log</p>
+                </div>
+                <span class="px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">Post-Allocation Operational Workflow</span>
+            </div>
+            <div class="flex flex-col lg:flex-row gap-6 items-center">
+                <div class="w-full lg:w-3/5 bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-center">
+                    <img src="/static/img/diagrams/fig5_room_change_flow.png" alt="Figure 5 - Room Change Request Flow" class="max-h-96 w-auto object-contain rounded-lg shadow-sm">
+                </div>
+                <div class="w-full lg:w-2/5 space-y-3 text-xs text-slate-600 leading-relaxed">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Student Self-Service Request</span>
+                        Students submit a request specifying preferred cooling, room type, and a mandatory detailed reason.
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Warden Decision Hub</span>
+                        The assigned Warden inspects live vacancies and either approves the request with a new bed allotment or records a rejection reason.
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">Atomic Bed Release &amp; Allocation</span>
+                        On approval, the prior bed is set to Available and the target bed is occupied in an atomic transaction with an AuditEntry.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Architecture Map & ERD -->
+        <div x-show="activeTab === 'all' || activeTab === 'arch'" class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-8">
+            <div>
+                <h2 class="text-lg font-bold text-slate-900">Overall System Architecture Map</h2>
+                <p class="text-xs text-slate-500 mt-1">Request flow, modular monolith boundaries, and asynchronous Celery tasks.</p>
+                <div class="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-center">
+                    <img src="/static/img/diagrams/architecture_map.png" alt="Architecture Map" class="max-h-[500px] w-auto object-contain rounded-lg shadow-sm">
+                </div>
+            </div>
+
+            <div class="pt-6 border-t border-slate-200">
+                <h2 class="text-lg font-bold text-slate-900">Entity Relationship Diagram (ERD)</h2>
+                <p class="text-xs text-slate-500 mt-1">Core tables, foreign keys, unique constraints, and tenant isolation.</p>
+                <div class="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-center">
+                    <img src="/static/img/diagrams/erd_diagram.png" alt="Entity Relationship Diagram" class="max-h-[500px] w-auto object-contain rounded-lg shadow-sm">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
